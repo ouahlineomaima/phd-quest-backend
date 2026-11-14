@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
+import { BadRequestException, PayloadTooLargeException, UnsupportedMediaTypeException } from '@nestjs/common';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppEnvironment } from '../config/environment';
@@ -15,7 +15,8 @@ export function configureApi(app: NestExpressApplication, config: ConfigService<
   app.use((error: unknown, _request: IncomingMessage, _response: ServerResponse, next: (error?: unknown) => void) => {
     if (error && typeof error === 'object' && 'type' in error) {
       if (error.type === 'entity.parse.failed') return next(new BadRequestException({ code: 'INVALID_JSON', message: 'Malformed JSON request' }));
-      if (error.type === 'entity.too.large') return next(new PayloadTooLargeException({ code: 'PAYLOAD_TOO_LARGE', message: 'Request payload is too large' }));
+      if (error.type === 'entity.too.large' || error.type === 'parameters.too.many') return next(new PayloadTooLargeException({ code: 'PAYLOAD_TOO_LARGE', message: 'Request payload is too large' }));
+      if (error.type === 'encoding.unsupported' || error.type === 'charset.unsupported') return next(new UnsupportedMediaTypeException({ code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Unsupported request encoding' }));
     }
     next(error);
   });

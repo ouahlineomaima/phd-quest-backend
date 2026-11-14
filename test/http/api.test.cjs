@@ -65,4 +65,13 @@ test('HTTP API conventions without external services', async t => {
       assert.doesNotMatch(JSON.stringify(body), /database-secret-password|sensitive|stack/);
     }
   });
+  await t.test('form parameter limits and unsupported encodings return safe client errors', async () => {
+    const form = new URLSearchParams(Array.from({ length: 101 }, (_, index) => [`field${index}`, 'x']));
+    const excessive = await fetch(`${base}/api/probe`, { method: 'POST', body: form });
+    assert.equal(excessive.status, 413);
+    assert.equal((await excessive.json()).code, 'PAYLOAD_TOO_LARGE');
+    const unsupported = await fetch(`${base}/api/probe`, { method: 'POST', headers: { 'content-type': 'application/json', 'content-encoding': 'unknown' }, body: '{}' });
+    assert.equal(unsupported.status, 415);
+    assert.equal((await unsupported.json()).code, 'UNSUPPORTED_MEDIA_TYPE');
+  });
 });
