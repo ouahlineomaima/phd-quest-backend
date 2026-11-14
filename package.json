@@ -7,7 +7,7 @@
                     "start":  "nest start",
                     "start:dev":  "nest start --watch",
                     "start:prod":  "node dist/main.js",
-                    "test":  "npm run build \u0026\u0026 node --test test/unit/*.test.cjs"
+                    "test":  "npm run build \u0026\u0026 node --test test/unit/*.test.cjs test/http/*.test.cjs"
                 },
     "dependencies":  {
                          "@nestjs/common":  "^11.1.0",
