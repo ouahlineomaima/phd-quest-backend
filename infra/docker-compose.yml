@@ -29,6 +29,11 @@ services:
       - '127.0.0.1:${BACKEND_PORT:-3000}:3000'
     environment:
       PORT: 3000
+      NODE_ENV: ${NODE_ENV:-development}
+      BODY_LIMIT_BYTES: ${BODY_LIMIT_BYTES:-1048576}
+      MONGO_CONNECT_TIMEOUT_MS: ${MONGO_CONNECT_TIMEOUT_MS:-5000}
+      MONGO_RETRY_ATTEMPTS: ${MONGO_RETRY_ATTEMPTS:-3}
+      MONGO_RETRY_DELAY_MS: ${MONGO_RETRY_DELAY_MS:-1000}
       MONGODB_URI: mongodb://mongodb:27017/${MONGO_DATABASE:-phd_quest}?replicaSet=${MONGO_REPLICA_SET:-rs0}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4200}
       TSC_WATCHFILE: DynamicPriorityPolling
