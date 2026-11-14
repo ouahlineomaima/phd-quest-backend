@@ -15,5 +15,5 @@ async function bootstrap() {
 }
 void bootstrap().catch(() => {
   Logger.error('Backend startup failed. Check configuration validation and database availability.', 'Bootstrap');
-  process.exitCode = 1;
+  process.exit(1);
 });

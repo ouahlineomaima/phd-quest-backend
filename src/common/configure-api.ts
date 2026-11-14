@@ -5,8 +5,10 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppEnvironment } from '../config/environment';
 import { ApiExceptionFilter } from './api-exception.filter';
 import { createValidationPipe } from './validation';
+import { requestLogging } from './request-logging';
 
 export function configureApi(app: NestExpressApplication, config: ConfigService<AppEnvironment, true>) {
+  app.use(requestLogging());
   app.useBodyParser('json', { limit: config.get('BODY_LIMIT_BYTES', { infer: true }) });
   app.useBodyParser('urlencoded', { limit: config.get('BODY_LIMIT_BYTES', { infer: true }), extended: false, parameterLimit: 100 });
   // Normalize parser errors before Nest converts SyntaxError and discards its type marker.
