@@ -1,0 +1,66 @@
+name: phd-quest
+services:
+  mongodb:
+    image: mongo:8.0
+    command: [mongod, --replSet, '${MONGO_REPLICA_SET:-rs0}', --bind_ip_all]
+    ports:
+      - '127.0.0.1:${MONGO_HOST_PORT:-27017}:27017'
+    environment:
+      MONGO_REPLICA_SET: ${MONGO_REPLICA_SET:-rs0}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --host localhost --eval '
+          try { rs.status() } catch (e) {
+            if (e.code !== 94) throw e;
+            rs.initiate({_id: process.env.MONGO_REPLICA_SET, members: [{_id: 0, host: "mongodb:27017"}]});
+          }
+          if (!db.hello().isWritablePrimary) quit(1);'
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+  backend:
+    build: ..
+    ports:
+      - '127.0.0.1:${BACKEND_PORT:-3000}:3000'
+    environment:
+      PORT: 3000
+      MONGODB_URI: mongodb://mongodb:27017/${MONGO_DATABASE:-phd_quest}?replicaSet=${MONGO_REPLICA_SET:-rs0}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4200}
+      TSC_WATCHFILE: DynamicPriorityPolling
+    volumes:
+      - ..:/app
+      - /app/node_modules
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://localhost:3000/api/health").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  frontend:
+    build: ../../phd-quest-frontend
+    ports:
+      - '127.0.0.1:${FRONTEND_PORT:-4200}:4200'
+    volumes:
+      - ../../phd-quest-frontend:/app
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://localhost:4200").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+volumes:
+  mongo_data:
+    name: phd-quest_mongo_data
+    external: true

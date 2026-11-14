@@ -1,0 +1,5 @@
+# Repository workflow
+
+After each completed and validated semantic unit, review changes, run relevant checks, stage only related files, create a descriptive Conventional Commit, and push to origin/main (or the explicitly requested working branch). Report the commit hash and push result. Keep frontend and backend commits separate. Never commit secrets, databases, backups, dependencies, build outputs or temporary files. Do not force-push, rewrite remote history, or amend pushed commits without explicit authorization. If a push fails, retain the local commit and report the failure. Fix failing checks before committing. Stop at the requested phase.
+
+Canonical shared development configuration is in infra/. Preserve the existing external volume phd-quest_mongo_data and the rs0 replica set. All feature modules must follow the api/controllers, api/dtos, business/services, persistence/models, persistence/enums, persistence/interfaces, persistence/repositories convention documented in README.md.
