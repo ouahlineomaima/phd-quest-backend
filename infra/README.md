@@ -1,4 +1,4 @@
-﻿# Shared development infrastructure
+# Shared development infrastructure
 
 Canonical Compose configuration lives here in the backend repository. Keep the frontend and backend as sibling clones:
 
@@ -15,7 +15,7 @@ phd-quest/                        not a Git repository
     .git/, AGENTS.md, README.md
     Dockerfile, .dockerignore, .gitignore, .env.example
     nest-cli.json, package*.json, tsconfig.json
-    src/config/, src/modules/health/
+    src/config/, src/database/, src/common/, src/modules/health/
     infra/
       docker-compose.yml         only canonical Compose file
       .env.example               Compose settings; .env stays untracked
@@ -24,6 +24,7 @@ phd-quest/                        not a Git repository
       scripts/compass-check.cjs
       validation/PHASE1.md
       validation/PHASE1.5.md
+      validation/PHASE2.md
 ```
 
 ## Start and stop
@@ -63,7 +64,7 @@ Before startup, check `Get-NetTCPConnection -LocalPort 27017 -State Listen -Erro
 
 ## Builds and verification
 
-Both applications build independently using Node 24.15+ (24.x): run `npm ci` and `npm run build` in the respective repository. No dependency versions changed in Phase 1.5.
+Both applications build independently using Node 24.15+ (24.x): run `npm ci` and `npm run build` in the respective repository. No dependency versions changed through Phase 2. Backend architecture, configuration and test commands are documented in ../README.md.
 
 From this directory:
 
@@ -79,6 +80,6 @@ Source bind mounts and polling enable hot reload. Dependencies use anonymous con
 
 ## Git workflow
 
-Both repositories use main. After each validated semantic unit: review changes, run relevant checks, stage related changes only, make a Conventional Commit, push, and report the hash and result. Do not force-push, amend pushed commits or rewrite remote history. Keep secrets, .env files, database data, backups, dependencies, build outputs and temporary files untracked. If authentication fails, retain local commits and sign into GitHub via Git Credential Manager before retrying. Repository AGENTS.md files preserve these instructions for subsequent phases.
+Both repositories use main. After each validated semantic unit: review changes, run relevant checks, stage related changes only, make a local Conventional Commit, and report its hash. Push only when GitHub authentication is already working; pushes are optional. Do not force-push, amend pushed commits or rewrite remote history. Keep secrets, .env files, database data, backups, dependencies, build outputs and temporary files untracked. If authentication is unavailable, retain local commits and continue without repeated authentication attempts or requests for credentials. Repository AGENTS.md files preserve these instructions for subsequent phases.
 
-See validation/PHASE1.md for historical results and validation/PHASE1.5.md for the current migration results. Phase 2 is out of scope.
+See validation/PHASE1.md and validation/PHASE1.5.md for historical results, and validation/PHASE2.md for backend foundation validation. Phase 3 has not been started.
