@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict'),{randomUUID}=require('node:crypto'),mongoose=require('mongoose');
+const {achievementSchema}=require('../../dist/modules/achievements/persistence/models/achievement.model');
+const {AchievementsRepository}=require('../../dist/modules/achievements/persistence/repositories/achievements.repository');
+const {AchievementsService}=require('../../dist/modules/achievements/business/services/achievements.service');
+(async()=>{const namespace='phd_quest_phase6_validation_'+randomUUID().replaceAll('-','');const uri=new URL(process.env.MONGODB_URI);uri.pathname='/'+namespace;const connection=await mongoose.createConnection(uri.toString()).asPromise();
+try{const model=connection.model('Achievement',achievementSchema),repository=new AchievementsRepository(model,connection);await Promise.all([repository.onModuleInit(),repository.onModuleInit()]);let summary={totalXp:0,longestStreak:0};let instant=new Date('2026-11-15T12:00:00Z');const service=new AchievementsService(repository,{summary:async()=>summary},{now:()=>instant},connection);
+assert.equal((await service.read()).filter(a=>a.unlockedAt).length,0);
+await connection.collection('weekly_plans').insertOne({weekId:'2026-11-15'});
+await connection.collection('daily_activity').insertOne({date:'2026-11-15',events:Array.from({length:12},()=>({sourceId:'same-task'}))});
+await connection.collection('roadmap_levels').insertOne({levelNumber:1,status:'current',checkpoints:[{completed:false,validatedAt:null,firstValidatedAt:instant}]});
+await connection.collection('goals').insertOne({status:'active',completedAt:null,firstCompletedAt:instant});
+const before=await service.read();assert.equal(before.filter(a=>a.unlockedAt).length,4);assert.equal(before.find(a=>a.code==='ten_tasks').unlockedAt,null);
+await connection.collection('daily_activity').insertOne({date:'2026-11-16',events:Array.from({length:10},(_,i)=>({sourceId:'task-'+i}))});
+await connection.collection('roadmap_levels').updateOne({levelNumber:1},{$set:{status:'completed'}});summary={totalXp:100,longestStreak:7};
+const [first,repeat]=await Promise.all([service.read(),service.read()]);assert.equal(first.filter(a=>a.unlockedAt).length,8);assert.deepEqual(first.map(a=>a.unlockedAt),repeat.map(a=>a.unlockedAt));
+instant=new Date('2026-12-01T12:00:00Z');summary={totalXp:100,longestStreak:7};await repository.onModuleInit();const after=await service.read();assert.deepEqual(first.map(a=>a.unlockedAt),after.map(a=>a.unlockedAt));assert.equal(await model.countDocuments(),8);assert.equal(await connection.collection('xp_transactions').countDocuments(),0);
+console.log('PASS achievements: initial locked state, distinct task history, corrected checkpoint/reopened goal evidence, all eight conditions, concurrent reconciliation, preserved unlock dates, no XP.');
+}finally{assert.equal(connection.name,namespace);assert.match(namespace,/^phd_quest_phase6_validation_[a-f0-9]{32}$/);await connection.dropDatabase();await connection.close();}})().catch(e=>{console.error(e);process.exitCode=1});
