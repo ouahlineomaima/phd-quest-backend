@@ -4,13 +4,24 @@ The local MVP uses NestJS 11.2.10, TypeScript 5.9.3, Mongoose 8.24.9 and Node 24
 
 ## Run locally
 
-Keep this repository beside `phd-quest-frontend`. The canonical shared configuration is [infra/docker-compose.yml](infra/docker-compose.yml); setup and Compass details are in [infra/README.md](infra/README.md).
+Keep this repository beside [phd-quest-frontend](https://github.com/ouahlineomaima/phd-quest-frontend). The canonical shared configuration is [infra/docker-compose.yml](infra/docker-compose.yml); detailed infrastructure and Compass setup is in [infra/README.md](infra/README.md).
+
+For a fresh installation, install Git and Docker Desktop with its Linux container engine running (Compose v2). Node.js is not needed for this Docker workflow. From the directory where you want the new workspace:
 
 ```powershell
-cd infra
-docker compose up -d --build
-docker compose down
+mkdir phd-quest
+cd phd-quest
+git clone https://github.com/ouahlineomaima/phd-quest-backend.git
+git clone https://github.com/ouahlineomaima/phd-quest-frontend.git
+docker volume create phd-quest_mongo_data
+docker compose -f phd-quest-backend/infra/docker-compose.yml up -d --build --wait
 ```
+
+The external volume must exist before first startup. The volume-create command leaves an existing volume intact; never delete it to restart or recover the application. From an existing workspace root, restart with `docker compose -f phd-quest-backend/infra/docker-compose.yml up -d --wait`. Ordinary `docker compose -f phd-quest-backend/infra/docker-compose.yml down` stops services without deleting data.
+
+Open the app at http://localhost:4200, the API at http://localhost:3000/api, or health at http://localhost:3000/api/health. The in-app [Help & Guide](http://localhost:4200/help) explains first use, connected progress, four copyable planning prompts and downloadable generic JSON examples. No AI service is called by the application.
+
+Data persists in the external `phd-quest_mongo_data` volume using the rs0 replica set. Export/restore is available in Settings; [backup and recovery](docs/BACKUP.md) explains full replacement, validation, timezone matching and explicit confirmation. Never remove the volume as a recovery step. Keep environment files and personal backups untracked.
 
 For direct host execution with Node 24.15+ (24.x), run from this repository:
 

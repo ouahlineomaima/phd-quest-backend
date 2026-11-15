@@ -10,7 +10,7 @@ phd-quest/                        not a Git repository
     .git/, AGENTS.md, README.md
     Dockerfile, .dockerignore, .gitignore
     angular.json, package*.json, tsconfig*.json, proxy.conf.json
-    src/app/                     empty standalone shell, core/shared/features
+    src/app/                     standalone workspace, core/shared/features
   phd-quest-backend/              origin: ouahlineomaima/phd-quest-backend
     .git/, AGENTS.md, README.md
     Dockerfile, .dockerignore, .gitignore, .env.example
@@ -46,7 +46,7 @@ Compose resolves build contexts and bind mounts relative to this directory. Its 
 
 The existing volume `phd-quest_mongo_data` is declared external to prevent accidental Compose lifecycle deletion or silent creation of a different volume after this migration. It already exists on this workstation. On a brand-new workstation only, create the initial empty volume explicitly with `docker volume create phd-quest_mongo_data` before startup. Never delete or recreate the existing volume. Normal `docker compose down` preserves data. Never use volume removal during routine operation.
 
-Frontend: http://localhost:4200 (intentionally blank). API health: http://localhost:3000/api/health. Proxy: http://localhost:4200/api/health. Host application ports and MongoDB bind only to 127.0.0.1.
+Frontend: http://localhost:4200. Help & Guide: http://localhost:4200/help. API health: http://localhost:3000/api/health. Proxy: http://localhost:4200/api/health. Host application ports and MongoDB bind only to 127.0.0.1.
 
 ## MongoDB Compass on Windows
 
@@ -64,7 +64,7 @@ Before startup, check `Get-NetTCPConnection -LocalPort 27017 -State Listen -Erro
 
 ## Builds and verification
 
-Both applications build independently using Node 24.15+ (24.x): run `npm ci` and `npm run build` in the respective repository. No dependency versions changed through Phase 2. Backend architecture, configuration and test commands are documented in ../README.md.
+Both applications build independently using Node 24.15+ (24.x): run `npm ci` and `npm run build` in the respective repository. Runtime/dependency versions are declared in the package manifests. Backend architecture, configuration and test commands are documented in ../README.md.
 
 From this directory:
 
@@ -82,4 +82,4 @@ Source bind mounts and polling enable hot reload. Dependencies use anonymous con
 
 Both repositories use main. After each validated semantic unit: review changes, run relevant checks, stage related changes only, make a local Conventional Commit, and report its hash. Push only when GitHub authentication is already working; pushes are optional. Do not force-push, amend pushed commits or rewrite remote history. Keep secrets, .env files, database data, backups, dependencies, build outputs and temporary files untracked. If authentication is unavailable, retain local commits and continue without repeated authentication attempts or requests for credentials. Repository AGENTS.md files preserve these instructions for subsequent phases.
 
-See validation/PHASE1.md and validation/PHASE1.5.md for historical results, and validation/PHASE2.md for backend foundation validation. Phase 3 has not been started.
+See validation/PHASE1.md and validation/PHASE1.5.md for historical results, and validation/PHASE2.md for backend foundation validation. These phase reports are historical; current user workflows and planning tools are documented in the in-app Help & Guide.
