@@ -1,6 +1,6 @@
-﻿# PhD Quest backend
+# PhD Quest backend
 
-The modular monolith uses NestJS 11.2.10, TypeScript 5.9.3, Mongoose 8.24.9 and Node 24 in Docker. Phase 4 adds insert-only weekly-plan imports and browsing in the weekly_plans collection; no seed data, task completion or gamification is implemented. Dependency versions are unchanged. See the [weekly-plan contract, API examples and ChatGPT prompt](docs/WEEKLY_PLANS.md) and [Phase 4 validation](infra/validation/PHASE4.md).
+The modular monolith uses NestJS 11.2.10, TypeScript 5.9.3, Mongoose 8.24.9 and Node 24 in Docker. Weekly plans support insert-only imports, atomic completion/reopening, an immutable XP ledger, player levels and daily activity streaks. No seed data or roadmap/goal/achievement rules are implemented. See [task progress APIs and rules](docs/TASK_PROGRESS.md). Dependency versions are unchanged. See the [weekly-plan contract, API examples and ChatGPT prompt](docs/WEEKLY_PLANS.md) and [Phase 4 validation](infra/validation/PHASE4.md).
 
 ## Run locally
 
@@ -82,6 +82,7 @@ To add a feature: create these directories; define explicit request/response DTO
 | --- | --- | --- |
 | MONGODB_URI | Required | Valid mongodb or mongodb+srv URI |
 | NODE_ENV | development | development, test, production |
+| APP_TIMEZONE | Africa/Casablanca | Supported Intl timezone; do not change existing activity dates without a migration plan |
 | PORT | 3000 | 1-65535 |
 | CORS_ORIGINS | http://localhost:4200 | One or more explicit origins |
 | BODY_LIMIT_BYTES | 1048576 | 1024-10485760 |
@@ -129,6 +130,8 @@ No test framework was previously installed. Tests use Node's built-in runner, ex
 npm test                  # Build + deterministic unit and HTTP tests; no MongoDB
 npm run test:integration  # Build + live rs0 transaction test; requires MONGODB_URI
 npm run test:plans        # Build + focused weekly-plan safety tests
+npm run test:progress     # Build + focused completion/level/streak rules
+npm run test:progress:transactions # Live rs0 check; creates and drops only its own UUID database
 npm run test:plans:smoke  # Explicit live API/DB check with own test-record cleanup
 ```
 
