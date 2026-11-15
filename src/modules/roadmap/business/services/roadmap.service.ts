@@ -1,5 +1,9 @@
+import type { RoadmapResponse } from '../../api/dtos/roadmap-response.dto';
+import { GoalsService } from '../../../goals/business/services/goals.service';
+import { goalContribution } from '../../../goals/business/services/goal-progress';
+import { RoadmapLevel } from '../../persistence/interfaces/roadmap.interface';
 import { applicationWrite } from '../../../../database/application-write';
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { ClientSession, Connection } from 'mongoose';
 import { ApplicationClock } from '../../../../common/application-clock';
@@ -7,16 +11,33 @@ import { RoadmapRepository } from '../../persistence/repositories/roadmap.reposi
 import { CheckpointUpdateDto } from '../../api/dtos/roadmap.dto';
 @Injectable()
 export class RoadmapService {
-  constructor(private readonly repository: RoadmapRepository, private readonly clock: ApplicationClock, @InjectConnection() private readonly connection: Connection) {}
-  list(session?: ClientSession) { return this.repository.list(session); }
-  async detail(number: number, session?: ClientSession) {
+  constructor(private readonly repository: RoadmapRepository, private readonly clock: ApplicationClock, @InjectConnection() private readonly connection: Connection, private readonly goals: GoalsService) {}
+  async list(session?: ClientSession):Promise<RoadmapResponse[]> {
+    if(!session)return this.connection.transaction(tx=>this.list(tx),{readConcern:{level:'snapshot'}});
+    return this.withProgress(await this.repository.list(session),session);
+  }
+  async detail(number: number, session?: ClientSession):Promise<RoadmapResponse> {
+    if(!session)return this.connection.transaction(tx=>this.detail(number,tx),{readConcern:{level:'snapshot'}});
+    return (await this.withProgress([await this.record(number,session)],session))[0];
+  }
+  private async withProgress(levels:RoadmapLevel[],session:ClientSession):Promise<RoadmapResponse[]> {
+    const ids=[...new Set(levels.flatMap(level=>level.checkpoints.flatMap(checkpoint=>checkpoint.goalIds??[])))];
+    const goals=ids.length?await this.goals.byIds(ids,session):[],byId=new Map(goals.map(goal=>[goal.id,goal]));
+    return levels.map(level=>({...level,checkpoints:level.checkpoints.map(checkpoint=>{
+      const goalIds=checkpoint.goalIds??[];
+      const linkedGoals=goalIds.map(id=>{const goal=byId.get(id);if(!goal)throw new ConflictException('A linked goal no longer exists. Correct the checkpoint links.');return goal;});
+      const percentage=linkedGoals.length?Math.round(100*linkedGoals.reduce((sum,goal)=>sum+goalContribution(goal),0)/linkedGoals.length):null;
+      return {...checkpoint,goalIds,linkedGoals:linkedGoals.map(goal=>({id:goal.id,title:goal.title,status:goal.status,completedAt:goal.completedAt,progress:goal.progress,contributionPercent:Math.round(100*goalContribution(goal))})),progress:{mode:goalIds.length?'linked' as const:'manual' as const,total:goalIds.length,percentage}};
+    })}));
+  }
+  private async record(number: number, session?: ClientSession) {
     const level = await this.repository.find(number, session);
     if (!level) throw new NotFoundException('Research level not found.');
     return level;
   }
   checkpoint(number: number, id: string, input: CheckpointUpdateDto) {
     return applicationWrite(this.connection, async session => {
-      const level = await this.detail(number, session);
+      const level = await this.record(number, session);
       if (level.status !== 'current') throw new ConflictException('Only the current research level can be corrected or validated. Completed levels are immutable.');
       const index = level.checkpoints.findIndex(checkpoint => checkpoint.id === id);
       if (index < 0) throw new NotFoundException('Checkpoint not found.');
@@ -28,27 +49,41 @@ export class RoadmapService {
         [`checkpoints.${index}.firstValidatedAt`]: input.completed ? checkpoint.firstValidatedAt ?? now : checkpoint.firstValidatedAt,
       };
       if (input.evidence !== undefined) fields[`checkpoints.${index}.evidence`] = input.evidence.trim();
-      return this.repository.update(number, fields, session);
+      await this.repository.update(number, fields, session);
+      return this.detail(number,session);
     }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
+  }
+  linkGoals(number:number,id:string,goalIds:string[]) {
+    return applicationWrite(this.connection,async session=>{
+      const level=await this.record(number,session);
+      if(level.status!=='current')throw new ConflictException('Only the current research chapter can change checkpoint links.');
+      const index=level.checkpoints.findIndex(checkpoint=>checkpoint.id===id);
+      if(index<0)throw new NotFoundException('Checkpoint not found.');
+      if(!Array.isArray(goalIds)||goalIds.length>100||new Set(goalIds).size!==goalIds.length||goalIds.some(goal=>typeof goal!=='string'||!/^[a-f0-9]{24}$/.test(goal)))throw new BadRequestException('Use up to 100 unique goal IDs.');
+      if((await this.goals.byIds(goalIds,session)).length!==goalIds.length)throw new BadRequestException('Every linked goal must exist.');
+      await this.repository.update(number,{[`checkpoints.${index}.goalIds`]:goalIds},session);
+      return this.detail(number,session);
+    });
   }
   edit(number: number, description: string) {
     return applicationWrite(this.connection, async session => {
-      await this.detail(number, session);
-      return this.repository.update(number, { description: description.trim() }, session);
+      await this.record(number, session);
+      await this.repository.update(number, { description: description.trim() }, session);
+      return this.detail(number,session);
     });
   }
   complete(number: number) {
     return applicationWrite(this.connection, async session => {
-      const level = await this.detail(number, session);
-      if (level.status === 'completed') return level;
+      const level = await this.record(number, session);
+      if (level.status === 'completed') return this.detail(number,session);
       if (level.status !== 'current' || !level.checkpoints.filter(c => c.mandatory).every(c => c.completed)) throw new ConflictException('Validate all mandatory checkpoints on the current level before completing it.');
-      const completed = await this.repository.update(number, { status: 'completed', completedAt: this.clock.now() }, session);
+      await this.repository.update(number, { status: 'completed', completedAt: this.clock.now() }, session);
       if (number < 12) {
-        const next = await this.detail(number + 1, session);
+        const next = await this.record(number + 1, session);
         if (next.status !== 'locked') throw new ConflictException('The next research level is not locked.');
         await this.repository.update(number + 1, { status: 'current' }, session);
       }
-      return completed;
+      return this.detail(number,session);
     }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
   }
 }

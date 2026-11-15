@@ -151,7 +151,8 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
     if (row.status === 'completed') { if (currentSeen || !row.completedAt) invalid('roadmapLevels', 'Completed chapters must form a prefix.'); }
     else { if (row.completedAt || row.status !== (currentSeen ? 'locked' : 'current')) invalid('roadmapLevels', 'Only the next uncompleted chapter may be current.'); currentSeen = true; }
     for (const checkpoint of checkpoints) {
-      shape(checkpoint, ['id', 'title', 'mandatory', 'completed', 'validatedAt', 'firstValidatedAt', 'evidence'], ['description'], 'checkpoints');
+      shape(checkpoint, ['id', 'title', 'mandatory', 'completed', 'validatedAt', 'firstValidatedAt', 'evidence'], ['description','goalIds'], 'checkpoints');
+      if(checkpoint.goalIds!==undefined){const refs=list(checkpoint.goalIds,'checkpoints.goalIds',100);unique(refs,value=>value,'checkpoints.goalIds');for(const ref of refs){id(ref,'checkpoints.goalIds');if(!data.goals.some((goal:Row)=>goal.id===ref))invalid('checkpoints.goalIds','Linked goal is missing.');}}
       text(checkpoint.id, 'checkpoints.id', 100); if (!/^[a-z0-9][a-z0-9_-]*$/.test(checkpoint.id)) invalid('checkpoints.id', 'Use a stable checkpoint identifier.');
       text(checkpoint.title, 'checkpoints.title', 300); if (checkpoint.description !== undefined) text(checkpoint.description, 'checkpoints.description', 3000, true);
       text(checkpoint.evidence, 'checkpoints.evidence', 2000, true); boolean(checkpoint.completed, 'checkpoints.completed'); boolean(checkpoint.mandatory, 'checkpoints.mandatory');
@@ -162,7 +163,8 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
     if (index && row.status === 'completed' && row.completedAt < levels[index - 1].completedAt) invalid('roadmapLevels', 'Research completion dates must follow chapter order.');
   }
   for (const row of data.goals) {
-    shape(row, ['id', 'title', 'description', 'type', 'status', 'targetDate', 'relatedWeekId', 'relatedRoadmapLevel', 'completedAt', 'firstCompletedAt', 'createdAt', 'updatedAt'], [], 'goals');
+    shape(row, ['id', 'title', 'description', 'type', 'status', 'targetDate', 'relatedWeekId', 'relatedRoadmapLevel', 'completedAt', 'firstCompletedAt', 'createdAt', 'updatedAt'], ['linkedTaskIds'], 'goals');
+    if(row.linkedTaskIds!==undefined){const refs=list(row.linkedTaskIds,'goals.linkedTaskIds',200);unique(refs,value=>value,'goals.linkedTaskIds');for(const ref of refs){if(typeof ref!=='string'||!tasks.has(ref))invalid('goals.linkedTaskIds','Linked task must exist using its full weekId:taskId identity.');}}
     text(row.title, 'goals.title', 160); text(row.description, 'goals.description', 2000, true); oneOf(row.type, ['weekly', 'monthly', 'research'], 'goals.type'); oneOf(row.status, ['active', 'completed', 'archived'], 'goals.status'); history(row, 'goals', end);
     if (row.targetDate !== null) date(row.targetDate, 'goals.targetDate');
     if (row.relatedWeekId !== null && !data.weeklyPlans.some((p: Row) => p.weekId === row.relatedWeekId)) invalid('goals.relatedWeekId', 'Related weekly plan is missing.');

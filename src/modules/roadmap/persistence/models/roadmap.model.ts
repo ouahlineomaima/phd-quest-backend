@@ -1,7 +1,7 @@
 import { Schema } from 'mongoose';
 import { RoadmapLevel } from '../interfaces/roadmap.interface';
 export const ROADMAP_MODEL = 'RoadmapLevel';
-const checkpoint = new Schema({ id: { type: String, required: true }, title: String, description: String,
+const checkpoint = new Schema({ goalIds: { type: [String], default: undefined }, id: { type: String, required: true }, title: String, description: String,
   mandatory: Boolean, completed: Boolean, validatedAt: { type: Date, default: null },
   firstValidatedAt: { type: Date, default: null }, evidence: { type: String, default: '' } }, { _id: false });
 export const roadmapSchema = new Schema<RoadmapLevel>({

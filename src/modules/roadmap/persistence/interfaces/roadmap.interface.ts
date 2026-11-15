@@ -1,4 +1,5 @@
 export interface Checkpoint {
+  goalIds?: string[];
   id: string; title: string; description?: string; mandatory: boolean; completed: boolean;
   validatedAt: Date | null; firstValidatedAt: Date | null; evidence: string;
 }
