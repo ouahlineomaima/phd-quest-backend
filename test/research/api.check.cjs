@@ -7,7 +7,7 @@ const assert=require('node:assert/strict'),mongoose=require('mongoose');
  const call=async(path,method='GET',body,status=200)=>{const r=await fetch(base.href.replace(/\/$/,'')+'/'+path,{method,headers:{'content-type':'application/json'},...body!==undefined?{body:JSON.stringify(body)}:{}});const value=await r.json();assert.equal(r.status,status,JSON.stringify(value));return value;};
  try {
   assert.equal(await db.collection('weekly_plans').countDocuments(),0);
-  const empty=await call('dashboard');assert.equal(empty.week.planId,null);assert.equal(empty.week.baselineMinutes,360);assert.equal(empty.gamification.totalXp,0);assert.equal(empty.research.current.levelNumber,1);assert.equal(empty.achievements.unlocked,0);
+  const empty=await call('dashboard');assert.equal(empty.week.planId,null);assert.equal(empty.week.baselineMinutes,360);assert.equal(empty.gamification.totalXp,0);assert.equal(empty.research.current.levelNumber,0);assert.equal(empty.achievements.unlocked,0);
   await call('roadmap/2/complete','POST',{confirm:true},409);await call('roadmap/1/complete','POST',{},400);await call('roadmap/1/complete','POST',{confirm:false},400);
   await call('roadmap/1/checkpoints/chapter-1-review','PATCH',{completed:null},400);await call('roadmap/1/checkpoints/chapter-1-review','PATCH',{completed:true,evidence:null},400);
   await call('roadmap/1','PATCH',{description:'   '},400);
@@ -15,6 +15,7 @@ const assert=require('node:assert/strict'),mongoose=require('mongoose');
   const goal=await call('goals','POST',{title:'Owned API goal',type:'research',relatedRoadmapLevel:1},201);assert.ok(await db.collection('goals').findOne({_id:new mongoose.Types.ObjectId(goal.id)}),'API must point to the owned database');
   await call('goals/'+goal.id,'PATCH',{title:'Edited API goal'});assert.equal((await call('goals')).length,1);
   await call('goals/'+goal.id+'/complete','PATCH',{});await call('goals/'+goal.id+'/reopen','PATCH',{});
+  await call('roadmap/0/checkpoints/research-environment-ready','PATCH',{completed:true});await call('roadmap/0/complete','POST',{confirm:true},201);
   await call('roadmap/1/checkpoints/chapter-1-review','PATCH',{completed:true,evidence:'Owned review'});await call('roadmap/1/checkpoints/chapter-1-review','PATCH',{completed:false});
   const historical=await call('achievements');assert.ok(historical.find(a=>a.code==='first_checkpoint').unlockedAt);assert.ok(historical.find(a=>a.code==='first_goal').unlockedAt);
   const example=require('../../docs/contracts/weekly-plan.v1.example.json');const input={...structuredClone(example),weekId:empty.week.weekId,startDate:empty.week.startDate,endDate:empty.week.endDate,title:'Owned Phase 6 current week'};

@@ -17,6 +17,7 @@ const {RoadmapService} = require('../../dist/modules/roadmap/business/services/r
   await assert.rejects(service.complete(2), e => e.getStatus() === 409);
   await assert.rejects(service.complete(1), e => e.getStatus() === 409);
   await assert.rejects(service.checkpoint(2, 'chapter-2-review', {completed:true}), e => e.getStatus() === 409);
+  await service.checkpoint(0,'research-environment-ready',{completed:true});await service.complete(0);
   await service.edit(1, 'My provisional direction');
   await service.checkpoint(1, 'chapter-1-review', {completed:true,evidence:'Reviewed outcomes'});
   await service.checkpoint(1, 'chapter-1-review', {completed:false});
@@ -29,7 +30,7 @@ const {RoadmapService} = require('../../dist/modules/roadmap/business/services/r
    await Promise.all([service.complete(number),service.complete(number)]);
   }
   assert.equal(await model.countDocuments(), 13);
-  assert.equal((await service.list()).filter(l => l.status === 'completed').length,12);
+  assert.equal((await service.list()).filter(l => l.status === 'completed').length,13);
   await assert.rejects(service.checkpoint(1, 'chapter-1-review', {completed:false}), e => e.getStatus() === 409);
   assert.equal(await connection.collection('xp_transactions').countDocuments(),0);
   console.log('PASS roadmap: concurrent seed, preserved edits, correction, locked levels, mandatory checks, concurrent completion, all 12 levels, no XP.');

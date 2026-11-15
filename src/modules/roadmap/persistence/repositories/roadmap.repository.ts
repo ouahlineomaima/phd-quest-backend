@@ -21,6 +21,10 @@ export class RoadmapRepository implements OnModuleInit {
           // Add only the new camp. Never renumber, relock or complete existing research work.
           await this.model.insertMany([preparationCamp()], { session });
         }
+        // Preparation is now the current chapter. Pause later progression without erasing work.
+        if (await this.model.exists({ levelNumber: 0, status: 'current' }).session(session)) {
+          await this.model.updateMany({ levelNumber: { $gt: 0 }, status: 'current' }, { $set: { status: 'locked' } }, { session });
+        }
       });
     } catch (error) {
       if ((error as { code?: number }).code !== 11000 || await this.model.countDocuments() !== 13) throw error;

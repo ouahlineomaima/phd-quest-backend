@@ -32,6 +32,6 @@ export function importedLevels(roadmap: RoadmapImportDto) {
     checkpoints: level.checkpoints.map(checkpoint => ({ id: checkpoint.id, title: checkpoint.title,
       ...(checkpoint.description !== undefined ? { description: checkpoint.description } : {}), mandatory: checkpoint.required,
       completed: false, validatedAt: null, firstValidatedAt: null, evidence: '' })),
-    status: level.levelNumber <= 1 ? 'current' : 'locked', completedAt: null,
+    status: level.levelNumber === 0 ? 'current' : 'locked', completedAt: null,
   }));
 }

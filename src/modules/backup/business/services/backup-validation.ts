@@ -139,6 +139,7 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
   unique(data.roadmapLevels, row => row.levelNumber, 'roadmapLevels.levelNumber');
   const levels = [...data.roadmapLevels].sort((a, b) => a.levelNumber - b.levelNumber);
   const hasCamp = levels.length === 13;
+  const preparationPending = hasCamp && levels[0].status === 'current';
   let currentSeen = false;
   for (const [index, row] of levels.entries()) {
     shape(row, ['id', 'levelNumber', 'year', 'title', 'description', 'objectives', 'checkpoints', 'status', 'completedAt', 'createdAt', 'updatedAt'], [], 'roadmapLevels');
@@ -153,7 +154,7 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
     if (number === 0) {
       if (row.status === 'locked' || (row.status === 'completed') !== !!row.completedAt) invalid('roadmapLevels', 'Preparation Camp is independently current or completed.');
     } else if (row.status === 'completed') { if (currentSeen || !row.completedAt) invalid('roadmapLevels', 'Completed chapters must form a prefix.'); }
-    else { if (row.completedAt || row.status !== (currentSeen ? 'locked' : 'current')) invalid('roadmapLevels', 'Only the next uncompleted chapter may be current.'); currentSeen = true; }
+    else { if (row.completedAt || row.status !== (currentSeen ? 'locked' : 'current') && !(preparationPending && !currentSeen && row.status === 'locked')) invalid('roadmapLevels', 'Only the next uncompleted chapter may be current.'); currentSeen = true; }
     for (const checkpoint of checkpoints) {
       shape(checkpoint, ['id', 'title', 'mandatory', 'completed', 'validatedAt', 'firstValidatedAt', 'evidence'], ['description','goalIds'], 'checkpoints');
       if(checkpoint.goalIds!==undefined){const refs=list(checkpoint.goalIds,'checkpoints.goalIds',100);unique(refs,value=>value,'checkpoints.goalIds');for(const ref of refs){id(ref,'checkpoints.goalIds');if(!data.goals.some((goal:Row)=>goal.id===ref))invalid('checkpoints.goalIds','Linked goal is missing.');}}
@@ -162,7 +163,7 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
       text(checkpoint.evidence, 'checkpoints.evidence', 2000, true); boolean(checkpoint.completed, 'checkpoints.completed'); boolean(checkpoint.mandatory, 'checkpoints.mandatory');
       const first = timestamp(checkpoint.firstValidatedAt, 'checkpoints.firstValidatedAt', end, true), validated = timestamp(checkpoint.validatedAt, 'checkpoints.validatedAt', end, true);
       interval(first, row, 'checkpoints.firstValidatedAt'); interval(validated, row, 'checkpoints.validatedAt');
-      if (checkpoint.completed !== !!validated || (validated && (!first || first > validated)) || (row.status === 'locked' && first) || (row.status === 'completed' && checkpoint.mandatory && !checkpoint.completed) || (row.completedAt && validated && validated > row.completedAt)) invalid('checkpoints', 'Checkpoint history conflicts with research progression.');
+      if (checkpoint.completed !== !!validated || (validated && (!first || first > validated)) || (row.status === 'locked' && first && !preparationPending) || (row.status === 'completed' && checkpoint.mandatory && !checkpoint.completed) || (row.completedAt && validated && validated > row.completedAt)) invalid('checkpoints', 'Checkpoint history conflicts with research progression.');
     }
     if (number > 1 && row.status === 'completed' && row.completedAt < levels[index - 1].completedAt) invalid('roadmapLevels', 'Research completion dates must follow chapter order.');
   }

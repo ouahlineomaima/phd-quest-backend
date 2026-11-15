@@ -1,6 +1,6 @@
 # PhD Quest backend
 
-The local MVP uses NestJS 11.2.10, TypeScript 5.9.3, Mongoose 8.24.9 and Node 24 in Docker. It supports weekly plans, atomic task progress, immutable XP, timezone-based streaks, independent Level 0 Preparation Camp plus the twelve-chapter research roadmap, goals, achievements, a live dashboard, and validated transactional backup/restore. Dependency versions are unchanged. See [weekly-plan import](docs/WEEKLY_PLANS.md), [task progress](docs/TASK_PROGRESS.md), [research progress](docs/RESEARCH_PROGRESS.md), and [backup/recovery instructions](docs/BACKUP.md).
+The local MVP uses NestJS 11.2.10, TypeScript 5.9.3, Mongoose 8.24.9 and Node 24 in Docker. It supports weekly plans, atomic task progress, immutable XP, timezone-based streaks, pre-PhD Level 0 Preparation Camp plus the twelve-chapter research roadmap, goals, achievements, a live dashboard, and validated transactional backup/restore. Dependency versions are unchanged. See [weekly-plan import](docs/WEEKLY_PLANS.md), [task progress](docs/TASK_PROGRESS.md), [research progress](docs/RESEARCH_PROGRESS.md), and [backup/recovery instructions](docs/BACKUP.md).
 
 ## Run locally
 

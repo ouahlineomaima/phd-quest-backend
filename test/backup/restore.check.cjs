@@ -31,6 +31,7 @@ let source,target;
  const realNow=clock.now.bind(clock);
  for(let i=0;i<10;i++){const at=new Date(now);at.setUTCDate(at.getUTCDate()-7+Math.min(i,6));clock.now=()=>new Date(at);await tasks.change(plan.id,'backup-'+i,'complete',5);}
  clock.now=realNow;await tasks.change(plan.id,'backup-0','reopen');
+ await roadmap.checkpoint(0,'research-environment-ready',{completed:true});await roadmap.complete(0);
  await roadmap.checkpoint(1,'chapter-1-review',{completed:true,evidence:'Historical checkpoint evidence'});await roadmap.complete(1);
  await roadmap.checkpoint(2,'chapter-2-review',{completed:true});await roadmap.checkpoint(2,'chapter-2-review',{completed:false});
  const goal=await goals.create({title:'Historical goal',type:'research',relatedWeekId:week.weekId,relatedRoadmapLevel:2});await goals.transition(goal.id,'complete');await goals.transition(goal.id,'reopen');

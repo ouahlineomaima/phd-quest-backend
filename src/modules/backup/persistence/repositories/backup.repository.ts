@@ -47,6 +47,9 @@ export class BackupRepository {
     if (!backup.data.roadmapLevels.some(row => row.levelNumber === 0)) {
       prepared.roadmapLevels.push(new (this.model('roadmapLevels'))({ ...preparationCamp(), createdAt: new Date(backup.exportedAt), updatedAt: new Date(backup.exportedAt) }));
     }
+    if (prepared.roadmapLevels.some(record => record.levelNumber === 0 && record.status === 'current')) {
+      for (const record of prepared.roadmapLevels) if (record.levelNumber > 0 && record.status === 'current') record.status = 'locked';
+    }
     return prepared;
   }
   async replace(prepared: Record<BackupSection, any[]>, session: ClientSession) {

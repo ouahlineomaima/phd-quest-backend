@@ -11,6 +11,6 @@ export function initialRoadmap() {
     checkpoints: [{ id: `chapter-${index + 1}-review`, title: 'Review and validate chapter outcomes',
       description: 'Provisional checkpoint: record the agreed outcomes and supporting references before validation.',
       mandatory: true, completed: false, validatedAt: null, firstValidatedAt: null, evidence: '' }],
-    status: index === 0 ? 'current' : 'locked', completedAt: null,
+    status: 'locked', completedAt: null,
   }))];
 }

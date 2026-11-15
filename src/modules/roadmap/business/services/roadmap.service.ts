@@ -65,10 +65,11 @@ export class RoadmapService {
       return this.detail(number,session);
     });
   }
-  edit(number: number, description: string) {
+  async edit(number: number, description?: string, title?: string) {
+    if (description === undefined && title === undefined) throw new BadRequestException('Provide a level title or description to update.');
     return applicationWrite(this.connection, async session => {
       await this.record(number, session);
-      await this.repository.update(number, { description: description.trim() }, session);
+      await this.repository.update(number, { ...(description !== undefined ? { description: description.trim() } : {}), ...(title !== undefined ? { title: title.trim() } : {}) }, session);
       return this.detail(number,session);
     });
   }
@@ -78,10 +79,12 @@ export class RoadmapService {
       if (level.status === 'completed') return this.detail(number,session);
       if (level.status !== 'current' || !level.checkpoints.filter(c => c.mandatory).every(c => c.completed)) throw new ConflictException('Validate all mandatory checkpoints on the current level before completing it.');
       await this.repository.update(number, { status: 'completed', completedAt: this.clock.now() }, session);
-      if (number > 0 && number < 12) {
-        const next = await this.record(number + 1, session);
+      if (number < 12) {
+        // Older workspaces may already contain completed research chapters; preserve them.
+        const next = number === 0 ? (await this.repository.list(session)).find(record => record.levelNumber > 0 && record.status !== 'completed') : await this.record(number + 1, session);
+        if (!next) return this.detail(number,session);
         if (next.status !== 'locked') throw new ConflictException('The next research level is not locked.');
-        await this.repository.update(number + 1, { status: 'current' }, session);
+        await this.repository.update(next.levelNumber, { status: 'current' }, session);
       }
       return this.detail(number,session);
     }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
