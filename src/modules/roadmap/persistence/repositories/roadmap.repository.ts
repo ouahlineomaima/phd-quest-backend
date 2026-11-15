@@ -1,3 +1,4 @@
+import { applicationWrite } from '../../../../database/application-write';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Connection, Model } from 'mongoose';
@@ -11,7 +12,7 @@ export class RoadmapRepository implements OnModuleInit {
     await this.model.createCollection();
     await this.model.collection.createIndex({ levelNumber: 1 }, { unique: true, name: 'roadmap_level_unique' });
     try {
-      await this.connection.transaction(async session => {
+      await applicationWrite(this.connection, async session => {
         if (!await this.model.exists({}).session(session)) await this.model.insertMany(initialRoadmap(), { session });
       });
     } catch (error) {

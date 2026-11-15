@@ -1,3 +1,4 @@
+import { applicationWrite } from '../../../../database/application-write';
 import { Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { ClientSession, Connection } from 'mongoose';
@@ -15,5 +16,5 @@ export class AchievementsService {
   if(codes.length)await this.repository.unlock(codes,this.clock.now(),session);
   return this.repository.list(session);
  }
- read() { return this.connection.transaction(async session=>this.evaluate(session,await this.gamification.summary(session)),{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}}); }
+ read() { return applicationWrite(this.connection, async session=>this.evaluate(session,await this.gamification.summary(session)),{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}}); }
 }

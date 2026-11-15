@@ -1,3 +1,4 @@
+import { applicationWrite } from '../../../../database/application-write';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { ClientSession, Connection } from 'mongoose';
@@ -14,7 +15,7 @@ export class RoadmapService {
     return level;
   }
   checkpoint(number: number, id: string, input: CheckpointUpdateDto) {
-    return this.connection.transaction(async session => {
+    return applicationWrite(this.connection, async session => {
       const level = await this.detail(number, session);
       if (level.status !== 'current') throw new ConflictException('Only the current research level can be corrected or validated. Completed levels are immutable.');
       const index = level.checkpoints.findIndex(checkpoint => checkpoint.id === id);
@@ -31,13 +32,13 @@ export class RoadmapService {
     }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
   }
   edit(number: number, description: string) {
-    return this.connection.transaction(async session => {
+    return applicationWrite(this.connection, async session => {
       await this.detail(number, session);
       return this.repository.update(number, { description: description.trim() }, session);
     });
   }
   complete(number: number) {
-    return this.connection.transaction(async session => {
+    return applicationWrite(this.connection, async session => {
       const level = await this.detail(number, session);
       if (level.status === 'completed') return level;
       if (level.status !== 'current' || !level.checkpoints.filter(c => c.mandatory).every(c => c.completed)) throw new ConflictException('Validate all mandatory checkpoints on the current level before completing it.');

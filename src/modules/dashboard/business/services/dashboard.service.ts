@@ -1,3 +1,4 @@
+import { applicationWrite } from '../../../../database/application-write';
 import { Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
@@ -14,7 +15,7 @@ export class DashboardService {
  constructor(private readonly repository:DashboardRepository,private readonly gamification:GamificationService,private readonly roadmap:RoadmapService,private readonly goals:GoalsService,private readonly achievements:AchievementsService,private readonly clock:ApplicationClock,@InjectConnection() private readonly connection:Connection) {}
  read() {
   const at=this.clock.now(),today=this.clock.dateAt(at),week=sundayWeek(today);
-  return this.connection.transaction(async session=>{
+  return applicationWrite(this.connection, async session=>{
    const gamification=await this.gamification.summary(session,at);
    const achievements=await this.achievements.evaluate(session,gamification);
    const levels=await this.roadmap.list(session),current=levels.find(l=>l.status==='current')??null;

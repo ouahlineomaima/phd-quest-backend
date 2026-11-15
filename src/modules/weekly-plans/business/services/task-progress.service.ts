@@ -1,3 +1,4 @@
+import { applicationWrite } from '../../../../database/application-write';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { ClientSession, Connection, isObjectIdOrHexString, mongo } from 'mongoose';
@@ -36,7 +37,7 @@ export class TaskProgressService {
     if (actualMinutes !== undefined && (!Number.isInteger(actualMinutes) || actualMinutes < 0 || actualMinutes > 1440)) throw new BadRequestException('Actual minutes must be an integer from 0 to 1440');
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.connection.transaction(async session => {
+        return await applicationWrite(this.connection, async session => {
           let plan = await this.plans.recordById(planId, session);
           if (!plan) throw new NotFoundException();
           const task = plan.tasks.find(item => item.id === taskId);

@@ -1,3 +1,4 @@
+import { applicationWrite } from '../../../../database/application-write';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Connection, Model } from 'mongoose';
@@ -10,7 +11,7 @@ export class AchievementsRepository implements OnModuleInit {
  async onModuleInit() {
   await this.model.createCollection();await this.model.collection.createIndex({code:1},{unique:true,name:'achievement_code_unique'});
   const now=new Date();
-  try { await this.model.bulkWrite(ACHIEVEMENT_DEFINITIONS.map(definition=>({updateOne:{filter:{code:definition.code},update:{$setOnInsert:{...definition,unlockedAt:null,createdAt:now,updatedAt:now}},upsert:true,timestamps:false}}))); }
+  try { await applicationWrite(this.connection, session => this.model.bulkWrite(ACHIEVEMENT_DEFINITIONS.map(definition=>({updateOne:{filter:{code:definition.code},update:{$setOnInsert:{...definition,unlockedAt:null,createdAt:now,updatedAt:now}},upsert:true,timestamps:false}})), { session })); }
   catch(error) { if((error as {code?:number}).code!==11000 || await this.model.countDocuments({code:{$in:ACHIEVEMENT_DEFINITIONS.map(d=>d.code)}})!==ACHIEVEMENT_DEFINITIONS.length)throw error; }
  }
  async evidence(session:ClientSession) {

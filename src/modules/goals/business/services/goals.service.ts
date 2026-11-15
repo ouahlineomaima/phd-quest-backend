@@ -1,3 +1,4 @@
+import { applicationWrite } from '../../../../database/application-write';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { ClientSession, Connection } from 'mongoose';
@@ -22,12 +23,12 @@ export class GoalsService {
   if (!/^[a-f0-9]{24}$/i.test(id)) throw new BadRequestException('Invalid goal ID.');
   const record=await this.repository.find(id,session); if (!record) throw new NotFoundException('Goal not found.'); return record;
  }
- create(input:CreateGoalDto) { return this.connection.transaction(async session => { await this.references(input,session); return this.repository.insert({...input,description:input.description ?? ''},session); }); }
- edit(id:string,input:EditGoalDto) { return this.connection.transaction(async session => {
+ create(input:CreateGoalDto) { return applicationWrite(this.connection, async session => { await this.references(input,session); return this.repository.insert({...input,description:input.description ?? ''},session); }); }
+ edit(id:string,input:EditGoalDto) { return applicationWrite(this.connection, async session => {
   const record=await this.detail(id,session); if(record.status==='archived') throw new ConflictException('Archived goals are preserved and cannot be edited.');
   await this.references(input,session); return this.repository.update(id,{...input,description:input.description === null ? '' : input.description ?? record.description},session);
  }); }
- transition(id:string,action:'complete'|'reopen'|'archive') { return this.connection.transaction(async session => {
+ transition(id:string,action:'complete'|'reopen'|'archive') { return applicationWrite(this.connection, async session => {
   const record=await this.detail(id,session);const status=action==='complete'?'completed':action==='reopen'?'active':'archived';
   if(record.status===status) return this.repository.response(record);
   if(record.status==='archived') throw new ConflictException('Archived goals cannot be reopened or completed. Create a new goal to resume this work.');

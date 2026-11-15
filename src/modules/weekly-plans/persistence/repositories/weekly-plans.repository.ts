@@ -1,3 +1,4 @@
+import { applicationWrite } from '../../../../database/application-write';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model } from 'mongoose';
@@ -17,8 +18,10 @@ export class WeeklyPlansRepository implements OnModuleInit {
   }
   async exists(weekId: string) { return !!await this.model.exists({ weekId }); }
   async insert(input: WeeklyPlanInput): Promise<WeeklyPlanResponseDto> {
-    const record = await this.model.create(input);
-    return this.toResponse(record.toObject());
+    return applicationWrite(this.model.db, async session => {
+      const [record] = await this.model.create([input], { session });
+      return this.toResponse(record.toObject());
+    });
   }
   async findById(id: string) {
     const record = await this.model.findById(id).lean().exec();
