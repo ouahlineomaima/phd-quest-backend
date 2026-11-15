@@ -1,9 +1,10 @@
-import { applicationWrite } from '../../../../database/application-write';
+import { applicationWrite, applicationRevision } from '../../../../database/application-write';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Connection, Model } from 'mongoose';
 import { ROADMAP_MODEL } from '../models/roadmap.model';
 import { RoadmapLevel } from '../interfaces/roadmap.interface';
+import type { importedLevels } from '../../business/services/roadmap-import-validation';
 import { initialRoadmap } from '../../business/services/roadmap-seed';
 @Injectable()
 export class RoadmapRepository implements OnModuleInit {
@@ -21,6 +22,11 @@ export class RoadmapRepository implements OnModuleInit {
     // A partial legacy map must be repaired explicitly; never replace existing work.
     const levels = await this.model.find().sort({ levelNumber: 1 }).lean();
     if (levels.length !== 12 || levels.some((level, index) => level.levelNumber !== index + 1)) throw new Error('Expected the fixed twelve-level research roadmap; existing data was preserved.');
+  }
+  revision(session: ClientSession) { return applicationRevision(this.connection, session); }
+  async replace(levels: ReturnType<typeof importedLevels>, session: ClientSession) {
+    await this.model.deleteMany({}, { session });
+    await this.model.insertMany(levels, { session });
   }
   list(session?: ClientSession) { return this.model.find({}, { _id: 0, __v: 0 }).sort({ levelNumber: 1 }).session(session ?? null).lean().exec(); }
   find(levelNumber: number, session?: ClientSession) { return this.model.findOne({ levelNumber }, { _id: 0, __v: 0 }).session(session ?? null).lean().exec(); }

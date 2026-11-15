@@ -18,3 +18,8 @@ export async function applicationWrite<T>(connection: Connection, work: (session
     }
   }
 }
+
+export async function applicationRevision(connection: Connection, session: ClientSession): Promise<number> {
+  const record = await connection.collection<{ _id: string; revision: number }>('_application_control').findOne({ _id: 'writes' }, { session });
+  return record?.revision ?? 0;
+}

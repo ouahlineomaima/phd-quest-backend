@@ -186,8 +186,9 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
       hundred_xp: data.xpTransactions.filter((r: Row) => r.awardedAt <= at).reduce((sum: number, r: Row) => sum + r.amount, 0) >= 100,
       seven_day_streak: streaks(eligibleEvents.map(e => localDateAt(new Date(e.occurredAt), timezone)), localDateAt(new Date(at), timezone)).longestStreak >= 7,
       first_plan: data.weeklyPlans.some((p: Row) => p.createdAt <= at),
-      first_checkpoint: levels.some(l => l.checkpoints.some((c: Row) => c.firstValidatedAt && c.firstValidatedAt <= at)),
-      first_level: levels.some(l => l.completedAt && l.completedAt <= at),
+      // Replacement creates a new map after earlier unlocks. The unlock record remains historical evidence.
+      first_checkpoint: levels.every(l => l.createdAt >= at) || levels.some(l => l.checkpoints.some((c: Row) => c.firstValidatedAt && c.firstValidatedAt <= at)),
+      first_level: levels.every(l => l.createdAt >= at) || levels.some(l => l.completedAt && l.completedAt <= at),
       first_goal: data.goals.some((g: Row) => g.firstCompletedAt && g.firstCompletedAt <= at),
     };
     if (!conditions[row.code]) invalid('achievements.' + row.code, 'Unlocked achievement is missing authoritative historical evidence.');

@@ -1,3 +1,4 @@
+import { applicationRevision } from '../../../../database/application-write';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { ClientSession, Connection, Model, Types } from 'mongoose';
@@ -19,10 +20,7 @@ function dates(value: unknown): unknown {
 export class BackupRepository {
   constructor(@InjectConnection() private readonly connection: Connection) {}
   private model(section: BackupSection): Model<any> { return this.connection.model(MODELS[section]); }
-  async revision(session: ClientSession) {
-    const record = await this.connection.collection<{ _id: string; revision: number }>('_application_control').findOne({ _id: 'writes' }, { session });
-    return record?.revision ?? 0;
-  }
+  revision(session: ClientSession) { return applicationRevision(this.connection, session); }
   async data(session: ClientSession): Promise<BackupFile['data']> {
     const data = {} as BackupFile['data'];
     for (const section of BACKUP_SECTIONS) {
