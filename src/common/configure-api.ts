@@ -1,3 +1,4 @@
+import { MAX_BACKUP_BYTES } from '../modules/backup/persistence/interfaces/backup.interface';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, PayloadTooLargeException, UnsupportedMediaTypeException } from '@nestjs/common';
 import { IncomingMessage, ServerResponse } from 'node:http';
@@ -9,6 +10,8 @@ import { requestLogging } from './request-logging';
 
 export function configureApi(app: NestExpressApplication, config: ConfigService<AppEnvironment, true>) {
   app.use(requestLogging());
+  // Only backup uploads receive the larger, bounded allowance; plan-import limits remain unchanged.
+  app.use('/api/backup', require('express').json({ limit: MAX_BACKUP_BYTES + 4096 }));
   app.useBodyParser('json', { limit: config.get('BODY_LIMIT_BYTES', { infer: true }) });
   app.useBodyParser('urlencoded', { limit: config.get('BODY_LIMIT_BYTES', { infer: true }), extended: false, parameterLimit: 100 });
   // Normalize parser errors before Nest converts SyntaxError and discards its type marker.

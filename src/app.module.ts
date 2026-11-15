@@ -5,6 +5,7 @@ import { HealthModule } from './modules/health/health.module';
 import { DatabaseModule } from './database/database.module';
 import { WeeklyPlansModule } from './modules/weekly-plans/weekly-plans.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
+import { BackupModule } from './modules/backup/backup.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AchievementsModule } from './modules/achievements/achievements.module';
 import { GoalsModule } from './modules/goals/goals.module';
@@ -21,6 +22,7 @@ import { RoadmapModule } from './modules/roadmap/roadmap.module';
     GoalsModule,
     AchievementsModule,
     DashboardModule,
+    BackupModule,
   ],
 })
 export class AppModule {}
