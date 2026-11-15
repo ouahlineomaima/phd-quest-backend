@@ -50,11 +50,15 @@ let source,target;
  p=await destination.preview(saved);await targetGoals.edit(goal.id,{title:'Original survives failures'});const original=(await destination.export()).data;
  await assert.rejects(destination.restore({backup:saved,...p,confirmation:'REPLACE ALL DATA'}),e=>e.getStatus()===409);assert.deepEqual((await destination.export()).data,original);
  p=await destination.preview(saved);await assert.rejects(destination.restore({backup:saved,...p,confirmation:'yes'}),e=>e.getStatus()===400);
+ const ready=destinationRepo.transactionReady.bind(destinationRepo);destinationRepo.transactionReady=async()=>false;await assert.rejects(destination.restore({backup:saved,...p,confirmation:'REPLACE ALL DATA'}),e=>e.getStatus()===503);destinationRepo.transactionReady=ready;assert.deepEqual((await destination.export()).data,original);
  const replace=destinationRepo.replace.bind(destinationRepo);destinationRepo.replace=async(...args)=>{await replace(...args);throw new Error('Injected failure after all replacement writes');};
  await assert.rejects(destination.restore({backup:saved,...p,confirmation:'REPLACE ALL DATA'}),/Injected failure/);destinationRepo.replace=replace;assert.deepEqual((await destination.export()).data,original);
  await destination.restore({backup:saved,...p,confirmation:'REPLACE ALL DATA'});assert.deepEqual((await destination.export()).data,saved.data);
+ const extra={...structuredClone(example),weekId:'2099-01-04',startDate:'2099-01-04',endDate:'2099-01-10',title:'Target-only reference'};extra.tasks.forEach(t=>t.date=extra.startDate);await target.get(WeeklyPlansService).confirm(extra);
+ p=await destination.preview(saved);let entered,release;const started=new Promise(resolve=>entered=resolve),held=new Promise(resolve=>release=resolve);destinationRepo.replace=async(...args)=>{await replace(...args);entered();await held;};
+ const restoring=destination.restore({backup:saved,...p,confirmation:'REPLACE ALL DATA'});await started;const linking=targetGoals.create({title:'Concurrent link',type:'weekly',relatedWeekId:extra.weekId}).then(()=>null,e=>e);release();await restoring;destinationRepo.replace=replace;assert.equal((await linking).getStatus(),400);assert.deepEqual((await destination.export()).data,saved.data);
  const repeatTask=await target.get(TaskProgressService).change(plan.id,'backup-0','complete');assert.equal(repeatTask.xpAwarded,0);assert.equal(repeatTask.gamification.totalXp,100);
- console.log('PASS backup: complete export; 15 invalid-file cases; fresh-install restore; stable IDs/timestamps; XP, streak, checkpoint and unlock history; explicit confirmation; stale/repeated requests; injected rollback; task XP after restore.');
+ console.log('PASS backup: complete export; 15 invalid-file cases; fresh-install restore; stable IDs/timestamps; XP, streak, checkpoint and unlock history; explicit confirmation; stale/repeated requests; replica-set preflight; injected rollback; concurrent reference safety; task XP after restore.');
 }finally{
  if(source)await source.close();if(target)await target.close();
  for(let i=0;i<names.length;i++){assert.match(names[i],/^phd_quest_phase7_validation_[a-f0-9]{32}$/);const db=await mongoose.createConnection(uris[i]).asPromise();assert.equal(db.name,names[i]);await db.dropDatabase();await db.close();}

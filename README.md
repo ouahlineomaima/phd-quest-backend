@@ -1,6 +1,6 @@
 # PhD Quest backend
 
-The modular monolith uses NestJS 11.2.10, TypeScript 5.9.3, Mongoose 8.24.9 and Node 24 in Docker. Weekly plans support insert-only imports, atomic completion/reopening, an immutable XP ledger, player levels and daily activity streaks. No seed data or roadmap/goal/achievement rules are implemented. See [task progress APIs and rules](docs/TASK_PROGRESS.md). Dependency versions are unchanged. See the [weekly-plan contract, API examples and ChatGPT prompt](docs/WEEKLY_PLANS.md) and [Phase 4 validation](infra/validation/PHASE4.md).
+The local MVP uses NestJS 11.2.10, TypeScript 5.9.3, Mongoose 8.24.9 and Node 24 in Docker. It supports weekly plans, atomic task progress, immutable XP, timezone-based streaks, the twelve-chapter research roadmap, goals, achievements, a live dashboard, and validated transactional backup/restore. Dependency versions are unchanged. See [weekly-plan import](docs/WEEKLY_PLANS.md), [task progress](docs/TASK_PROGRESS.md), [research progress](docs/RESEARCH_PROGRESS.md), and [backup/recovery instructions](docs/BACKUP.md).
 
 ## Run locally
 
@@ -70,7 +70,7 @@ feature-name/
   persistence/repositories/
 ```
 
-For example, a future task controller would validate a request DTO and call a task service. The service would enforce business rules and call a task-specific repository. That repository alone would access the task model. This example is documentation only; no task module exists yet.
+Task-progress controllers validate DTOs and delegate to the service, which coordinates plan, XP and activity repositories in one transaction.
 
 To add a feature: create these directories; define explicit request/response DTOs; register schemas with `MongooseModule.forFeature` inside the feature; provide the feature service and repository; register its controllers; import the feature module in AppModule; add unit and HTTP tests. Keep business services independent of request objects. Avoid generic repositories, CQRS and extra transaction abstractions.
 
@@ -120,7 +120,7 @@ Example error:
 
 Create concrete feature repositories using injected models. Keep all database access there, pass a `ClientSession` explicitly into participating repository methods, and use the same connection/session for every write in an atomic unit. Do not swallow transaction errors, run parallel writes on one session, or perform external side effects inside a callback that may be retried.
 
-The existing rs0 connection supports native `session.withTransaction` or Mongoose `connection.transaction`; no additional framework is needed. Future task completion, XP and daily activity writes can share one session, backed by feature-specific uniqueness constraints and idempotency rules. Those models and rules are intentionally deferred. The integration test proves commit and rollback across two temporary collections in `_foundation_validation`, then drops only those uniquely named test collections.
+The rs0 connection supports multi-document transactions. Task, roadmap, goal, achievement and restore writers use `database/application-write.ts` to touch a shared revision inside their transaction. This prevents concurrent inserts or references from escaping a replace-all restore snapshot. Read-only exports use snapshot transactions. See [the backup contract](docs/BACKUP.md) for validation, confirmation and stale-preview rules.
 
 ## Tests
 
