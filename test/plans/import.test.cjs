@@ -5,6 +5,7 @@ const { ImportPlanDto } = require('../../dist/modules/weekly-plans/api/dtos/impo
 const { calendarOrdinal, calendarDates, validatePlan } = require('../../dist/modules/weekly-plans/business/services/plan-validation');
 const { WeeklyPlansService } = require('../../dist/modules/weekly-plans/business/services/weekly-plans.service');
 const example = require('../../docs/contracts/weekly-plan.v1.example.json');
+const { mongo } = require('mongoose');
 const copy = () => structuredClone(example);
 const decode = value => createValidationPipe().transform(value, { type: 'body', metatype: ImportPlanDto });
 
@@ -49,4 +50,23 @@ test('calendar arithmetic handles leap years, DST-adjacent weeks and year rollov
     const p = { ...copy(), weekId: start, startDate: start, endDate: end, tasks: [] };
     validatePlan(p); assert.equal(calendarDates(start)[6], end);
   }
+});
+test('confirmation revalidates without trusting preview and preserves existing weeks', async () => {
+  let writes = 0;
+  const service = new WeeklyPlansService({ exists: async () => true, insert: () => { writes++; } });
+  const invalid = copy(); invalid.tasks[1].id = invalid.tasks[0].id;
+  await assert.rejects(service.confirm(invalid), error => error.getStatus() === 400);
+  await assert.rejects(service.confirm(copy()), error => error.getStatus() === 409 && error.getResponse().code === 'WEEK_EXISTS');
+  assert.equal(writes, 0);
+});
+test('a concurrent duplicate-index error becomes a safe explicit week conflict', async () => {
+  const service = new WeeklyPlansService({ exists: async () => false, insert: async () => { throw new mongo.MongoServerError({ code: 11000, message: 'private database detail' }); } });
+  await assert.rejects(service.confirm(copy()), error => {
+    assert.equal(error.getStatus(), 409); assert.equal(error.getResponse().code, 'WEEK_EXISTS');
+    assert.doesNotMatch(JSON.stringify(error.getResponse()), /private database detail/); return true;
+  });
+});
+test('oversized imports are rejected before persistence', async () => {
+  const p = copy(); p.tasks = Array.from({ length: 200 }, (_, index) => ({ ...p.tasks[0], id: `task-${index}`, description: 'x'.repeat(2000), deliverable: 'x'.repeat(500) }));
+  assert.throws(() => validatePlan(p), error => error.getStatus() === 413);
 });
