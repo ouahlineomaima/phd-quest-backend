@@ -142,9 +142,13 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
   const preparationPending = hasCamp && levels[0].status === 'current';
   let currentSeen = false;
   for (const [index, row] of levels.entries()) {
-    shape(row, ['id', 'levelNumber', 'year', 'title', 'description', 'objectives', 'checkpoints', 'status', 'completedAt', 'createdAt', 'updatedAt'], [], 'roadmapLevels');
+    shape(row, ['id', 'levelNumber', 'year', 'title', 'description', 'objectives', 'checkpoints', 'status', 'completedAt', 'createdAt', 'updatedAt'], ['yearTitle'], 'roadmapLevels');
     const number = index + (hasCamp ? 0 : 1);
     if (row.levelNumber !== number || row.year !== (number === 0 ? null : Math.floor((number - 1) / 4) + 1)) invalid('roadmapLevels', 'Fixed order and three-year structure are required.');
+    if (row.yearTitle !== undefined) {
+      if (![1, 5, 9].includes(row.levelNumber)) invalid('roadmapLevels.yearTitle', 'Year headings belong on the first chapter of each research year.');
+      text(row.yearTitle, 'roadmapLevels.yearTitle', 160);
+    }
     text(row.title, 'roadmapLevels.title', 160); text(row.description, 'roadmapLevels.description', 3000); history(row, 'roadmapLevels', end);
     list(row.objectives, 'roadmapLevels.objectives', 20).forEach(v => text(v, 'roadmapLevels.objectives', 300));
     const checkpoints = list(row.checkpoints, 'roadmapLevels.checkpoints', 100); unique(checkpoints, c => c.id, 'checkpoints.id');

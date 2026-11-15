@@ -65,6 +65,15 @@ export class RoadmapService {
       return this.detail(number,session);
     });
   }
+  async editYearTitle(year: number, title: string) {
+    if (!Number.isInteger(year) || year < 1 || year > 3) throw new BadRequestException('Choose research year 1, 2 or 3.');
+    return applicationWrite(this.connection, async session => {
+      const anchor = (year - 1) * 4 + 1;
+      await this.record(anchor, session);
+      await this.repository.update(anchor, { yearTitle: title.trim() }, session);
+      return this.list(session);
+    });
+  }
   async edit(number: number, description?: string, title?: string) {
     if (description === undefined && title === undefined) throw new BadRequestException('Provide a level title or description to update.');
     return applicationWrite(this.connection, async session => {

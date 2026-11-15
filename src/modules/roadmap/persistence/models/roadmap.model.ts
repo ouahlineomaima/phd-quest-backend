@@ -6,6 +6,8 @@ const checkpoint = new Schema({ goalIds: { type: [String], default: undefined },
   firstValidatedAt: { type: Date, default: null }, evidence: { type: String, default: '' } }, { _id: false });
 export const roadmapSchema = new Schema<RoadmapLevel>({
   levelNumber: { type: Number, required: true, min: 0, max: 12 }, year: { type: Number, default: null }, title: String,
+  // Year heading metadata lives on the first chapter of each academic year (1, 5, 9).
+  yearTitle: { type: String, trim: true, maxlength: 160, default: undefined },
   description: String, objectives: [String], checkpoints: [checkpoint],
   status: { type: String, enum: ['current', 'locked', 'completed'] }, completedAt: { type: Date, default: null },
 }, { collection: 'roadmap_levels', timestamps: true, autoCreate: false, autoIndex: false });

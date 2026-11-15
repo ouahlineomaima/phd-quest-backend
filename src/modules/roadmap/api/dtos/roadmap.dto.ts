@@ -12,3 +12,7 @@ export class EditLevelDto {
 export class CheckpointGoalsDto {
   @IsArray() @ArrayMaxSize(100) @ArrayUnique() @IsString({each:true}) @Matches(/^[a-f0-9]{24}$/,{each:true}) goalIds!: string[];
 }
+
+export class EditYearTitleDto {
+  @IsString() @Matches(/\S/) @MaxLength(160) title!: string;
+}
