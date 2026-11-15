@@ -7,10 +7,12 @@
                     "start":  "nest start",
                     "start:dev":  "nest start --watch",
                     "start:prod":  "node dist/main.js",
-                    "test":  "npm run build \u0026\u0026 node --test test/unit/*.test.cjs test/http/*.test.cjs test/plans/*.test.cjs",
+                    "test":  "npm run build \u0026\u0026 node --test test/unit/*.test.cjs test/http/*.test.cjs test/plans/*.test.cjs test/progress/*.test.cjs",
                     "test:integration":  "npm run build \u0026\u0026 node --test test/integration/*.integration.cjs",
                     "test:plans":  "npm run build \u0026\u0026 node --test test/plans/*.test.cjs",
-                    "test:plans:smoke":  "node test/plans/api.smoke.cjs"
+                    "test:plans:smoke":  "node test/plans/api.smoke.cjs",
+                    "test:progress":  "npm run build \u0026\u0026 node --test test/progress/*.test.cjs",
+                    "test:progress:transactions":  "node test/progress/transactions.check.cjs"
                 },
     "dependencies":  {
                          "@nestjs/common":  "^11.1.0",
