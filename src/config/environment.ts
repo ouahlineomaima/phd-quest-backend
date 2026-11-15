@@ -9,6 +9,7 @@ export interface AppEnvironment {
   MONGO_CONNECT_TIMEOUT_MS: number;
   MONGO_RETRY_ATTEMPTS: number;
   MONGO_RETRY_DELAY_MS: number;
+  APP_TIMEZONE: string;
 }
 
 export function validateEnvironment(env: Record<string, unknown>): AppEnvironment {
@@ -38,6 +39,7 @@ export function validateEnvironment(env: Record<string, unknown>): AppEnvironmen
     errors.push('CORS_ORIGINS must contain comma-separated HTTP origins without paths or credentials');
   }
   const result: AppEnvironment = {
+    APP_TIMEZONE: String(env.APP_TIMEZONE ?? 'Africa/Casablanca'),
     NODE_ENV: mode as AppEnvironment['NODE_ENV'],
     PORT: integer('PORT', 3000, 1, 65535),
     MONGODB_URI: uri,
@@ -47,6 +49,8 @@ export function validateEnvironment(env: Record<string, unknown>): AppEnvironmen
     MONGO_RETRY_ATTEMPTS: integer('MONGO_RETRY_ATTEMPTS', 3, 0, 10),
     MONGO_RETRY_DELAY_MS: integer('MONGO_RETRY_DELAY_MS', 1000, 0, 30000),
   };
+  try { new Intl.DateTimeFormat('en', { timeZone: result.APP_TIMEZONE }).format(); }
+  catch { errors.push('APP_TIMEZONE must be a supported timezone such as Africa/Casablanca'); }
   // Never echo supplied values: URIs can contain credentials.
   if (errors.length) throw new Error(`Invalid environment configuration:\n- ${errors.join('\n- ')}`);
   return result;
