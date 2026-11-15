@@ -1,6 +1,6 @@
 ﻿# PhD Quest backend
 
-Phase 2 provides a modular monolith foundation with NestJS 11.2.10, TypeScript 5.9.3, Mongoose 8.24.9 and Node 24 in Docker. No business endpoints, models, collections or seed data are registered. Dependency versions are unchanged.
+The modular monolith uses NestJS 11.2.10, TypeScript 5.9.3, Mongoose 8.24.9 and Node 24 in Docker. Phase 4 adds insert-only weekly-plan imports and browsing in the weekly_plans collection; no seed data, task completion or gamification is implemented. Dependency versions are unchanged. See the [weekly-plan contract, API examples and ChatGPT prompt](docs/WEEKLY_PLANS.md) and [Phase 4 validation](infra/validation/PHASE4.md).
 
 ## Run locally
 
@@ -46,6 +46,8 @@ src/
     api/dtos/
     business/services/health.service.ts
     persistence/{models,enums,interfaces,repositories}/
+  modules/weekly-plans/             API DTOs/controllers, validation/import service,
+                                   embedded model, enums/interfaces and repository
 test/
   unit/                            configuration, database options, validation,
                                    errors, logging, startup and health
@@ -126,6 +128,8 @@ No test framework was previously installed. Tests use Node's built-in runner, ex
 ```powershell
 npm test                  # Build + deterministic unit and HTTP tests; no MongoDB
 npm run test:integration  # Build + live rs0 transaction test; requires MONGODB_URI
+npm run test:plans        # Build + focused weekly-plan safety tests
+npm run test:plans:smoke  # Explicit live API/DB check with own test-record cleanup
 ```
 
 For host integration tests, export MONGODB_URI in the shell; the standalone test runner does not load `.env`. From `infra/`, use the container environment instead:

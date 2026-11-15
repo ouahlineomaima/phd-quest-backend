@@ -1,0 +1,88 @@
+{
+  "plan": {
+    "schemaVersion": 1,
+    "weekId": "2026-11-15",
+    "startDate": "2026-11-15",
+    "endDate": "2026-11-21",
+    "title": "Research Preparation — Week 1",
+    "objectives": [
+      "Organize the research workspace",
+      "Configure reference management"
+    ],
+    "tasks": [
+      {
+        "id": "setup-workspace",
+        "date": "2026-11-15",
+        "title": "Organize research workspace",
+        "description": "Prepare the initial research folders.",
+        "estimatedMinutes": 30,
+        "xpReward": 10,
+        "priority": "medium",
+        "isOptional": false,
+        "deliverable": "Research workspace structure"
+      },
+      {
+        "id": "setup-zotero",
+        "date": "2026-11-16",
+        "title": "Configure Zotero",
+        "estimatedMinutes": 45,
+        "xpReward": 15,
+        "priority": "high",
+        "isOptional": false,
+        "deliverable": "Working Zotero library"
+      }
+    ],
+    "notes": "Preparation week before Level 0."
+  },
+  "totals": {
+    "taskCount": 2,
+    "estimatedMinutes": 75,
+    "potentialXp": 25
+  },
+  "days": [
+    {
+      "date": "2026-11-15",
+      "taskCount": 1,
+      "estimatedMinutes": 30,
+      "potentialXp": 10
+    },
+    {
+      "date": "2026-11-16",
+      "taskCount": 1,
+      "estimatedMinutes": 45,
+      "potentialXp": 15
+    },
+    {
+      "date": "2026-11-17",
+      "taskCount": 0,
+      "estimatedMinutes": 0,
+      "potentialXp": 0
+    },
+    {
+      "date": "2026-11-18",
+      "taskCount": 0,
+      "estimatedMinutes": 0,
+      "potentialXp": 0
+    },
+    {
+      "date": "2026-11-19",
+      "taskCount": 0,
+      "estimatedMinutes": 0,
+      "potentialXp": 0
+    },
+    {
+      "date": "2026-11-20",
+      "taskCount": 0,
+      "estimatedMinutes": 0,
+      "potentialXp": 0
+    },
+    {
+      "date": "2026-11-21",
+      "taskCount": 0,
+      "estimatedMinutes": 0,
+      "potentialXp": 0
+    }
+  ],
+  "canImport": true,
+  "conflicts": []
+}

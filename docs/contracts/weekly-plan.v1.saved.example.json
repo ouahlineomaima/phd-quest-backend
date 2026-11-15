@@ -1,0 +1,44 @@
+{
+  "id": "000000000000000000000001",
+  "schemaVersion": 1,
+  "weekId": "2026-11-15",
+  "startDate": "2026-11-15",
+  "endDate": "2026-11-21",
+  "title": "Research Preparation — Week 1",
+  "objectives": [
+    "Organize the research workspace",
+    "Configure reference management"
+  ],
+  "tasks": [
+    {
+      "id": "setup-workspace",
+      "date": "2026-11-15",
+      "title": "Organize research workspace",
+      "description": "Prepare the initial research folders.",
+      "estimatedMinutes": 30,
+      "xpReward": 10,
+      "priority": "medium",
+      "isOptional": false,
+      "deliverable": "Research workspace structure",
+      "status": "pending",
+      "actualMinutes": 0,
+      "completedAt": null
+    },
+    {
+      "id": "setup-zotero",
+      "date": "2026-11-16",
+      "title": "Configure Zotero",
+      "estimatedMinutes": 45,
+      "xpReward": 15,
+      "priority": "high",
+      "isOptional": false,
+      "deliverable": "Working Zotero library",
+      "status": "pending",
+      "actualMinutes": 0,
+      "completedAt": null
+    }
+  ],
+  "notes": "Preparation week before Level 0.",
+  "createdAt": "2026-11-15T00:00:00.000Z",
+  "updatedAt": "2026-11-15T00:00:00.000Z"
+}

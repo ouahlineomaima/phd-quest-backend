@@ -4,7 +4,7 @@ The authoritative import contract is [weekly-plan.v1.schema.json](contracts/week
 
 `schemaVersion` is the number 1. `weekId` is the Sunday calendar date, not an ISO week number. It must equal `startDate`; `endDate` must be the Saturday six calendar days later. Dates are real Gregorian YYYY-MM-DD dates in 1900-9999, stored as strings. Calendar comparisons use day ordinals, not timezone conversion. Each task date must be inside its week. Task IDs are stable lowercase slugs (1-64 characters, letters/digits/underscore/hyphen), unique within the week. Reuse IDs unchanged when generating the same tasks again; a future reward source can use weekId + task ID.
 
-All strings are trimmed before validation. Title: 1-160 characters. Objectives: 1-20 strings, each 1-300 characters. Tasks: 0-200. Description: optional, at most 2,000 characters. Notes: optional, at most 5,000. Deliverable: required, 1-500. Optional means absent, not null. estimatedMinutes: integer 1-1440 per task. xpReward: integer 0-1000, potential reward metadata only. priority: low/medium/high. isOptional: a JSON boolean. Unknown fields, including imported status, actualMinutes, completedAt, database IDs, and previewValidated flags, are rejected. No coercion of numeric strings or booleans is allowed.
+Human-readable text and task IDs are trimmed before validation; dates must use the exact calendar-date format. Title: 1-160 characters. Objectives: 1-20 strings, each 1-300 characters. Tasks: 0-200. Description: optional, at most 2,000 characters. Notes: optional, at most 5,000. Deliverable: required, 1-500. Optional means absent, not null. estimatedMinutes: integer 1-1440 per task. xpReward: integer 0-1000, potential reward metadata only. priority: low/medium/high. isOptional: a JSON boolean. Unknown fields, including imported status, actualMinutes, completedAt, database IDs, and previewValidated flags, are rejected. No coercion of numeric strings or booleans is allowed.
 
 The JSON Schema describes field-level constraints; the server also enforces cross-field dates, trimmed nonblank strings and duplicate task IDs. Files are limited to 500 KiB; the server limits normalized import JSON to 500 KiB in addition to the existing HTTP body-size limit (default 1 MiB). The 6-hour weekly baseline is a reference, never a limit. Workload and potential XP totals are simple sums of import metadata; no XP is awarded.
 
@@ -18,6 +18,18 @@ Both POST endpoints take the import object directly, with Content-Type applicati
 - GET `/api/weekly-plans/:id`: full saved plan or HTTP 404 for an unknown ObjectId; malformed IDs return HTTP 400.
 
 Full responses include id (MongoDB ObjectId as string), all v1 fields, createdAt/updatedAt ISO timestamps, and embedded tasks with backend-managed status=pending, actualMinutes=0, completedAt=null. Calendar dates remain date strings; timestamps represent instants. Mongoose internals and __v are not returned. Errors use the global `{statusCode, code, message, details, timestamp, path}` envelope. Semantic validation details contain `{field, message}`; structural validation details contain `{field, rules}`. Example: tasks.1.date identifies the second task date. Duplicate conflicts identify weekId. Confirmation is always authoritative even after a successful preview.
+
+The pending/zero/null values above are initialization values for new imports. Detail responses preserve any server-managed progress already present. Complete wire examples are [preview response](contracts/weekly-plan.v1.preview.example.json) and [saved/detail response](contracts/weekly-plan.v1.saved.example.json); their IDs and timestamps are illustrative, not seeded records.
+
+From this repository, send the canonical request with:
+
+```powershell
+curl.exe -X POST http://localhost:3000/api/weekly-plans/import/preview -H "Content-Type: application/json" --data-binary @docs/contracts/weekly-plan.v1.example.json
+```
+
+Preview is safe to repeat. Submit the same JSON to import/confirm only when you intend to save that week. Do not submit the saved-response example as an import: database IDs, timestamps and progress fields are deliberately forbidden in imports.
+
+Focused checks: `npm run test:plans` builds and runs eight deterministic safety tests. `npm run test:plans:smoke` requires a running API and exported MONGODB_URI (or the backend container environment); it creates only a UUID-marked free test week in 2099, checks concurrent import and progress preservation, and removes its own record afterward. It does not reset the database or run full infrastructure persistence checks. The normal npm test command retains the existing tests and includes the new focused tests.
 
 ## Conflict and progress policy
 
