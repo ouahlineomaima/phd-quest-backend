@@ -5,6 +5,7 @@ import { ClientSession, Connection, Model } from 'mongoose';
 import { ROADMAP_MODEL } from '../models/roadmap.model';
 import { RoadmapLevel } from '../interfaces/roadmap.interface';
 import type { importedLevels } from '../../business/services/roadmap-import-validation';
+import { preparationCamp } from '../../business/services/preparation-camp';
 import { initialRoadmap } from '../../business/services/roadmap-seed';
 @Injectable()
 export class RoadmapRepository implements OnModuleInit {
@@ -14,14 +15,19 @@ export class RoadmapRepository implements OnModuleInit {
     await this.model.collection.createIndex({ levelNumber: 1 }, { unique: true, name: 'roadmap_level_unique' });
     try {
       await applicationWrite(this.connection, async session => {
-        if (!await this.model.exists({}).session(session)) await this.model.insertMany(initialRoadmap(), { session });
+        const existing = await this.model.find().sort({ levelNumber: 1 }).session(session).lean();
+        if (!existing.length) await this.model.insertMany(initialRoadmap(), { session });
+        else if (existing.length === 12 && existing.every((level, index) => level.levelNumber === index + 1)) {
+          // Add only the new camp. Never renumber, relock or complete existing research work.
+          await this.model.insertMany([preparationCamp()], { session });
+        }
       });
     } catch (error) {
-      if ((error as { code?: number }).code !== 11000 || await this.model.countDocuments() !== 12) throw error;
+      if ((error as { code?: number }).code !== 11000 || await this.model.countDocuments() !== 13) throw error;
     }
     // A partial legacy map must be repaired explicitly; never replace existing work.
     const levels = await this.model.find().sort({ levelNumber: 1 }).lean();
-    if (levels.length !== 12 || levels.some((level, index) => level.levelNumber !== index + 1)) throw new Error('Expected the fixed twelve-level research roadmap; existing data was preserved.');
+    if (levels.length !== 13 || levels.some((level, index) => level.levelNumber !== index || level.year !== (index === 0 ? null : Math.floor((index - 1) / 4) + 1))) throw new Error('Expected Preparation Camp and twelve research chapters; existing data was preserved.');
   }
   revision(session: ClientSession) { return applicationRevision(this.connection, session); }
   async replace(levels: ReturnType<typeof importedLevels>, session: ClientSession) {

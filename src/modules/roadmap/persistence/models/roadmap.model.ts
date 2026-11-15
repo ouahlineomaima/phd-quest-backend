@@ -5,7 +5,7 @@ const checkpoint = new Schema({ goalIds: { type: [String], default: undefined },
   mandatory: Boolean, completed: Boolean, validatedAt: { type: Date, default: null },
   firstValidatedAt: { type: Date, default: null }, evidence: { type: String, default: '' } }, { _id: false });
 export const roadmapSchema = new Schema<RoadmapLevel>({
-  levelNumber: { type: Number, required: true, min: 1, max: 12 }, year: Number, title: String,
+  levelNumber: { type: Number, required: true, min: 0, max: 12 }, year: { type: Number, default: null }, title: String,
   description: String, objectives: [String], checkpoints: [checkpoint],
   status: { type: String, enum: ['current', 'locked', 'completed'] }, completedAt: { type: Date, default: null },
 }, { collection: 'roadmap_levels', timestamps: true, autoCreate: false, autoIndex: false });

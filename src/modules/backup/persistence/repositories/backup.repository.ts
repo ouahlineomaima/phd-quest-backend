@@ -1,3 +1,4 @@
+import { preparationCamp } from '../../../roadmap/business/services/preparation-camp';
 import { applicationRevision } from '../../../../database/application-write';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
@@ -41,6 +42,10 @@ export class BackupRepository {
         if (record.validateSync()) throw new BadRequestException({ code: 'INVALID_BACKUP', message: 'Backup violates application record schemas.', details: [{ field: section, message: 'Check required fields and field limits.' }] });
         return record;
       });
+    }
+    // Old v1 backups restore every historical record unchanged, then gain the missing camp.
+    if (!backup.data.roadmapLevels.some(row => row.levelNumber === 0)) {
+      prepared.roadmapLevels.push(new (this.model('roadmapLevels'))({ ...preparationCamp(), createdAt: new Date(backup.exportedAt), updatedAt: new Date(backup.exportedAt) }));
     }
     return prepared;
   }

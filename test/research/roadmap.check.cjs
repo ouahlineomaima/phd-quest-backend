@@ -13,7 +13,7 @@ const {RoadmapService} = require('../../dist/modules/roadmap/business/services/r
   const repository = new RoadmapRepository(model, connection);
   await Promise.all([repository.onModuleInit(), repository.onModuleInit()]);
   const service = new RoadmapService(repository, {now: () => new Date()}, connection);
-  assert.equal((await service.list()).length, 12);
+  assert.equal((await service.list()).length, 13);
   await assert.rejects(service.complete(2), e => e.getStatus() === 409);
   await assert.rejects(service.complete(1), e => e.getStatus() === 409);
   await assert.rejects(service.checkpoint(2, 'chapter-2-review', {completed:true}), e => e.getStatus() === 409);
@@ -28,7 +28,7 @@ const {RoadmapService} = require('../../dist/modules/roadmap/business/services/r
    await service.checkpoint(number, `chapter-${number}-review`, {completed:true});
    await Promise.all([service.complete(number),service.complete(number)]);
   }
-  assert.equal(await model.countDocuments(), 12);
+  assert.equal(await model.countDocuments(), 13);
   assert.equal((await service.list()).filter(l => l.status === 'completed').length,12);
   await assert.rejects(service.checkpoint(1, 'chapter-1-review', {completed:false}), e => e.getStatus() === 409);
   assert.equal(await connection.collection('xp_transactions').countDocuments(),0);

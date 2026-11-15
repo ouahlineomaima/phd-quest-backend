@@ -5,7 +5,7 @@ export class GoalFieldsDto {
  @IsOptional() @IsString() @MaxLength(2000) @Transform(({value}: {value:unknown}) => typeof value === 'string' ? value.trim() : value) description?: string;
  @IsOptional() @IsString() @Matches(/^\d{4}-\d{2}-\d{2}$/) targetDate?: string | null;
  @IsOptional() @IsString() @Matches(/^\d{4}-\d{2}-\d{2}$/) relatedWeekId?: string | null;
- @IsOptional() @IsInt() @Min(1) @Max(12) relatedRoadmapLevel?: number | null;
+ @IsOptional() @IsInt() @Min(0) @Max(12) relatedRoadmapLevel?: number | null;
 }
 export class CreateGoalDto extends GoalFieldsDto {
  @IsString() @Matches(/\S/) @MaxLength(160) @Transform(({value}: {value:unknown}) => typeof value === 'string' ? value.trim() : value) title!: string;

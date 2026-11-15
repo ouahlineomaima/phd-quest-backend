@@ -28,7 +28,7 @@ export class BackupService {
   async preview(input: unknown) {
     const { file, digest } = this.validate(input);
     const revision = await this.connection.transaction(session => this.repository.revision(session), { readConcern: { level: 'snapshot' } });
-    return { application: file.application, schemaVersion: file.schemaVersion, exportedAt: file.exportedAt, settings: file.settings, counts: file.counts, digest, revision, policy: 'replace-all' as const };
+    return { application: file.application, schemaVersion: file.schemaVersion, exportedAt: file.exportedAt, settings: file.settings, counts: file.counts, preparationCampAdded: !file.data.roadmapLevels.some(level => level.levelNumber === 0), digest, revision, policy: 'replace-all' as const };
   }
   async restore(input: RestoreBackupDto) {
     if (input.confirmation !== RESTORE_CONFIRMATION) throw new BadRequestException('Explicit replacement confirmation is required.');
@@ -39,7 +39,7 @@ export class BackupService {
       // applicationWrite increments the revision before reading any application data.
       if (await this.repository.revision(session) !== input.revision + 1) throw new ConflictException('Application data changed after preview, or this restore already ran. Reload and preview again before replacing data.');
       await this.repository.replace(prepared, session);
-      return { restored: true, restoredAt: this.clock.now().toISOString(), counts: file.counts, digest };
+      return { restored: true, restoredAt: this.clock.now().toISOString(), counts: Object.fromEntries(BACKUP_SECTIONS.map(section => [section, prepared[section].length])), digest };
     }, { maxCommitTimeMS: 10000 });
   }
 }

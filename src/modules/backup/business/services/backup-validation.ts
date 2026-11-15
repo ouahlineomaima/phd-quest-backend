@@ -135,20 +135,24 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
     const times = (bySource.get(source) ?? []).map(e => e.occurredAt).sort();
     if (task.firstCompletedAt && (times[0] !== task.firstCompletedAt || (task.status === 'completed' && times[times.length - 1] !== task.completedAt))) invalid('tasks', 'Task completion timestamps must match immutable activity history.');
   }
-  if (data.roadmapLevels.length !== 12) invalid('roadmapLevels', 'Exactly twelve research levels are required.');
+  if (![12, 13].includes(data.roadmapLevels.length)) invalid('roadmapLevels', 'Twelve research chapters, optionally preceded by Preparation Camp, are required.');
   unique(data.roadmapLevels, row => row.levelNumber, 'roadmapLevels.levelNumber');
   const levels = [...data.roadmapLevels].sort((a, b) => a.levelNumber - b.levelNumber);
+  const hasCamp = levels.length === 13;
   let currentSeen = false;
   for (const [index, row] of levels.entries()) {
     shape(row, ['id', 'levelNumber', 'year', 'title', 'description', 'objectives', 'checkpoints', 'status', 'completedAt', 'createdAt', 'updatedAt'], [], 'roadmapLevels');
-    if (row.levelNumber !== index + 1 || row.year !== Math.floor(index / 4) + 1) invalid('roadmapLevels', 'Fixed order and three-year structure are required.');
+    const number = index + (hasCamp ? 0 : 1);
+    if (row.levelNumber !== number || row.year !== (number === 0 ? null : Math.floor((number - 1) / 4) + 1)) invalid('roadmapLevels', 'Fixed order and three-year structure are required.');
     text(row.title, 'roadmapLevels.title', 160); text(row.description, 'roadmapLevels.description', 3000); history(row, 'roadmapLevels', end);
     list(row.objectives, 'roadmapLevels.objectives', 20).forEach(v => text(v, 'roadmapLevels.objectives', 300));
     const checkpoints = list(row.checkpoints, 'roadmapLevels.checkpoints', 100); unique(checkpoints, c => c.id, 'checkpoints.id');
     if (!checkpoints.some(c => c.mandatory === true)) invalid('checkpoints', 'A chapter must contain a mandatory checkpoint.');
     oneOf(row.status, ['current', 'locked', 'completed'], 'roadmapLevels.status');
     timestamp(row.completedAt, 'roadmapLevels.completedAt', end, true); interval(row.completedAt, row, 'roadmapLevels.completedAt');
-    if (row.status === 'completed') { if (currentSeen || !row.completedAt) invalid('roadmapLevels', 'Completed chapters must form a prefix.'); }
+    if (number === 0) {
+      if (row.status === 'locked' || (row.status === 'completed') !== !!row.completedAt) invalid('roadmapLevels', 'Preparation Camp is independently current or completed.');
+    } else if (row.status === 'completed') { if (currentSeen || !row.completedAt) invalid('roadmapLevels', 'Completed chapters must form a prefix.'); }
     else { if (row.completedAt || row.status !== (currentSeen ? 'locked' : 'current')) invalid('roadmapLevels', 'Only the next uncompleted chapter may be current.'); currentSeen = true; }
     for (const checkpoint of checkpoints) {
       shape(checkpoint, ['id', 'title', 'mandatory', 'completed', 'validatedAt', 'firstValidatedAt', 'evidence'], ['description','goalIds'], 'checkpoints');
@@ -160,7 +164,7 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
       interval(first, row, 'checkpoints.firstValidatedAt'); interval(validated, row, 'checkpoints.validatedAt');
       if (checkpoint.completed !== !!validated || (validated && (!first || first > validated)) || (row.status === 'locked' && first) || (row.status === 'completed' && checkpoint.mandatory && !checkpoint.completed) || (row.completedAt && validated && validated > row.completedAt)) invalid('checkpoints', 'Checkpoint history conflicts with research progression.');
     }
-    if (index && row.status === 'completed' && row.completedAt < levels[index - 1].completedAt) invalid('roadmapLevels', 'Research completion dates must follow chapter order.');
+    if (number > 1 && row.status === 'completed' && row.completedAt < levels[index - 1].completedAt) invalid('roadmapLevels', 'Research completion dates must follow chapter order.');
   }
   for (const row of data.goals) {
     shape(row, ['id', 'title', 'description', 'type', 'status', 'targetDate', 'relatedWeekId', 'relatedRoadmapLevel', 'completedAt', 'firstCompletedAt', 'createdAt', 'updatedAt'], ['linkedTaskIds'], 'goals');
@@ -168,7 +172,10 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
     text(row.title, 'goals.title', 160); text(row.description, 'goals.description', 2000, true); oneOf(row.type, ['weekly', 'monthly', 'research'], 'goals.type'); oneOf(row.status, ['active', 'completed', 'archived'], 'goals.status'); history(row, 'goals', end);
     if (row.targetDate !== null) date(row.targetDate, 'goals.targetDate');
     if (row.relatedWeekId !== null && !data.weeklyPlans.some((p: Row) => p.weekId === row.relatedWeekId)) invalid('goals.relatedWeekId', 'Related weekly plan is missing.');
-    if (row.relatedRoadmapLevel !== null) integer(row.relatedRoadmapLevel, 'goals.relatedRoadmapLevel', 1, 12);
+    if (row.relatedRoadmapLevel !== null) {
+      integer(row.relatedRoadmapLevel, 'goals.relatedRoadmapLevel', 0, 12);
+      if (!levels.some(level => level.levelNumber === row.relatedRoadmapLevel)) invalid('goals.relatedRoadmapLevel', 'Related roadmap level is missing.');
+    }
     const first = timestamp(row.firstCompletedAt, 'goals.firstCompletedAt', end, true), completed = timestamp(row.completedAt, 'goals.completedAt', end, true);
     interval(first, row, 'goals.firstCompletedAt'); interval(completed, row, 'goals.completedAt');
     if ((row.status === 'active' && completed) || (row.status === 'completed' && !completed) || (completed && (!first || first > completed))) invalid('goals', 'Goal completion history is inconsistent.');
@@ -189,8 +196,8 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
       seven_day_streak: streaks(eligibleEvents.map(e => localDateAt(new Date(e.occurredAt), timezone)), localDateAt(new Date(at), timezone)).longestStreak >= 7,
       first_plan: data.weeklyPlans.some((p: Row) => p.createdAt <= at),
       // Replacement creates a new map after earlier unlocks. The unlock record remains historical evidence.
-      first_checkpoint: levels.every(l => l.createdAt >= at) || levels.some(l => l.checkpoints.some((c: Row) => c.firstValidatedAt && c.firstValidatedAt <= at)),
-      first_level: levels.every(l => l.createdAt >= at) || levels.some(l => l.completedAt && l.completedAt <= at),
+      first_checkpoint: levels.filter(l => l.levelNumber > 0).every(l => l.createdAt >= at) || levels.filter(l => l.levelNumber > 0).some(l => l.checkpoints.some((c: Row) => c.firstValidatedAt && c.firstValidatedAt <= at)),
+      first_level: levels.filter(l => l.levelNumber > 0).every(l => l.createdAt >= at) || levels.filter(l => l.levelNumber > 0).some(l => l.completedAt && l.completedAt <= at),
       first_goal: data.goals.some((g: Row) => g.firstCompletedAt && g.firstCompletedAt <= at),
     };
     if (!conditions[row.code]) invalid('achievements.' + row.code, 'Unlocked achievement is missing authoritative historical evidence.');

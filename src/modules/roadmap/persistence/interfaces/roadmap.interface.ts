@@ -4,7 +4,7 @@ export interface Checkpoint {
   validatedAt: Date | null; firstValidatedAt: Date | null; evidence: string;
 }
 export interface RoadmapLevel {
-  levelNumber: number; year: number; title: string; description: string; objectives: string[];
+  levelNumber: number; year: number | null; title: string; description: string; objectives: string[];
   checkpoints: Checkpoint[]; status: 'current' | 'locked' | 'completed'; completedAt: Date | null;
   createdAt: Date; updatedAt: Date;
 }

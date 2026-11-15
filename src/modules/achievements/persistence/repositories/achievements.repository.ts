@@ -18,8 +18,8 @@ export class AchievementsRepository implements OnModuleInit {
   const options={session,projection:{_id:1}};
   const plan=!!await this.connection.collection('weekly_plans').findOne({},options);
   const goal=!!await this.connection.collection('goals').findOne({firstCompletedAt:{$type:'date'}},options);
-  const checkpoint=!!await this.connection.collection('roadmap_levels').findOne({checkpoints:{$elemMatch:{firstValidatedAt:{$type:'date'}}}},options);
-  const level=!!await this.connection.collection('roadmap_levels').findOne({status:'completed'},options);
+  const checkpoint=!!await this.connection.collection('roadmap_levels').findOne({levelNumber:{$gt:0},checkpoints:{$elemMatch:{firstValidatedAt:{$type:'date'}}}},options);
+  const level=!!await this.connection.collection('roadmap_levels').findOne({levelNumber:{$gt:0},status:'completed'},options);
   const distinct=await this.connection.collection('daily_activity').aggregate<{count:number}>([
    {$unwind:'$events'},{$match:{'events.sourceId':{$type:'string'}}},{$group:{_id:'$events.sourceId'}},{$limit:10},{$count:'count'},
   ],{session}).toArray();

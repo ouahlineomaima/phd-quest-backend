@@ -13,7 +13,7 @@ export class RoadmapImportService {
     return this.connection.transaction(async session => {
       const levels = await this.repository.list(session), revision = await this.repository.revision(session);
       return { roadmap, digest: roadmapDigest(roadmap), revision, metadataPersisted: false,
-        totals: { levels: 12, objectives: roadmap.levels.reduce((sum, level) => sum + level.objectives.length, 0),
+        totals: { levels: roadmap.levels.length, objectives: roadmap.levels.reduce((sum, level) => sum + level.objectives.length, 0),
           checkpoints: roadmap.levels.reduce((sum, level) => sum + level.checkpoints.length, 0),
           requiredCheckpoints: roadmap.levels.reduce((sum, level) => sum + level.checkpoints.filter(c => c.required).length, 0) },
         existing: { willReplace: levels.length > 0, levels: levels.length, completedLevels: levels.filter(level => level.status === 'completed').length,

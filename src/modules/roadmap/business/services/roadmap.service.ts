@@ -78,7 +78,7 @@ export class RoadmapService {
       if (level.status === 'completed') return this.detail(number,session);
       if (level.status !== 'current' || !level.checkpoints.filter(c => c.mandatory).every(c => c.completed)) throw new ConflictException('Validate all mandatory checkpoints on the current level before completing it.');
       await this.repository.update(number, { status: 'completed', completedAt: this.clock.now() }, session);
-      if (number < 12) {
+      if (number > 0 && number < 12) {
         const next = await this.record(number + 1, session);
         if (next.status !== 'locked') throw new ConflictException('The next research level is not locked.');
         await this.repository.update(number + 1, { status: 'current' }, session);

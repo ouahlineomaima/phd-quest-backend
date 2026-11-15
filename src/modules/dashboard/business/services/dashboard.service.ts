@@ -18,7 +18,7 @@ export class DashboardService {
   return applicationWrite(this.connection, async session=>{
    const gamification=await this.gamification.summary(session,at);
    const achievements=await this.achievements.evaluate(session,gamification);
-   const levels=await this.roadmap.list(session),current=levels.find(l=>l.status==='current')??null;
+   const levels=await this.roadmap.list(session),current=levels.find(l=>l.levelNumber>0&&l.status==='current')??null;
    const activeGoals=await this.goals.list({status:'active'},session,5);
    const activeCount=await this.goals.activeCount(session);
    const plan=await this.repository.currentPlan(week.weekId,session);
@@ -33,7 +33,7 @@ export class DashboardService {
      todayTasks:plan?.tasks.filter(t=>t.date===today)??[],
      days:week.dates.map(date=>{const tasks=plan?.tasks.filter(t=>t.date===date)??[];return {date,totalTasks:tasks.length,completedTasks:tasks.filter(t=>t.status==='completed').length,plannedMinutes:tasks.reduce((sum,t)=>sum+t.estimatedMinutes,0),actualMinutes:tasks.reduce((sum,t)=>sum+t.actualMinutes,0)};}),
     },
-    research:{current,completedLevels:levels.filter(l=>l.status==='completed').length,totalLevels:12,checkpointCompleted:current?.checkpoints.filter(c=>c.completed).length??0,checkpointTotal:current?.checkpoints.length??0},
+    research:{current,completedLevels:levels.filter(l=>l.levelNumber>0&&l.status==='completed').length,totalLevels:12,preparation:levels.find(l=>l.levelNumber===0)??null,checkpointCompleted:current?.checkpoints.filter(c=>c.completed).length??0,checkpointTotal:current?.checkpoints.length??0},
     goals:{activeCount,items:activeGoals},
     achievements:{total:achievements.length,unlocked:unlocked.length,recent:unlocked.sort((a,b)=>b.unlockedAt!.getTime()-a.unlockedAt!.getTime()).slice(0,3)},recentActivity,
    };

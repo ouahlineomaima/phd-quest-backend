@@ -9,7 +9,7 @@ export class ImportedCheckpointDto {
   @IsBoolean() required!: boolean;
 }
 export class ImportedLevelDto {
-  @IsInt() @Min(1) @Max(12) levelNumber!: number;
+  @IsInt() @Min(0) @Max(12) levelNumber!: number;
   @Transform(trim) @IsString() @MinLength(1) @MaxLength(160) title!: string;
   @Transform(trim) @IsString() @MinLength(1) @MaxLength(3000) description!: string;
   @Transform(({ value }: { value: unknown }) => Array.isArray(value) ? value.map(item => typeof item === 'string' ? item.trim() : item) : value)
@@ -21,7 +21,7 @@ export class RoadmapImportDto {
   @IsString() @Matches(slug) @MaxLength(100) roadmapId!: string;
   @Transform(trim) @IsString() @MinLength(1) @MaxLength(160) title!: string;
   @Equals(3) durationYears!: 3;
-  @IsArray() @ArrayMinSize(12) @ArrayMaxSize(12) @ValidateNested({ each: true }) @Type(() => ImportedLevelDto) levels!: ImportedLevelDto[];
+  @IsArray() @ArrayMinSize(12) @ArrayMaxSize(13) @ValidateNested({ each: true }) @Type(() => ImportedLevelDto) levels!: ImportedLevelDto[];
 }
 // Preserve the raw inner object until size validation and normalization in the service.
 export class PreviewRoadmapDto { @IsDefined() @IsObject() roadmap!: unknown; }
