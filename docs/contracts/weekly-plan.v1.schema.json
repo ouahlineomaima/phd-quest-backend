@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phd-quest.local/contracts/weekly-plan.v1.schema.json",
+  "title": "PhD Quest weekly plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "weekId", "startDate", "endDate", "title", "objectives", "tasks"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "weekId": { "$ref": "#/$defs/calendarDate" },
+    "startDate": { "$ref": "#/$defs/calendarDate" },
+    "endDate": { "$ref": "#/$defs/calendarDate" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "objectives": { "type": "array", "minItems": 1, "maxItems": 20, "items": { "type": "string", "minLength": 1, "maxLength": 300 } },
+    "tasks": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/task" } },
+    "notes": { "type": "string", "maxLength": 5000 }
+  },
+  "$defs": {
+    "calendarDate": { "type": "string", "pattern": "^(?:19|[2-9][0-9])[0-9]{2}-[0-9]{2}-[0-9]{2}$", "format": "date" },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "date", "title", "estimatedMinutes", "xpReward", "priority", "isOptional", "deliverable"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$" },
+        "date": { "$ref": "#/$defs/calendarDate" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "estimatedMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+        "xpReward": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "priority": { "enum": ["low", "medium", "high"] },
+        "isOptional": { "type": "boolean" },
+        "deliverable": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    }
+  }
+}
