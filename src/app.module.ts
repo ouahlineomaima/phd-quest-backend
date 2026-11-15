@@ -5,6 +5,7 @@ import { HealthModule } from './modules/health/health.module';
 import { DatabaseModule } from './database/database.module';
 import { WeeklyPlansModule } from './modules/weekly-plans/weekly-plans.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
+import { RoadmapModule } from './modules/roadmap/roadmap.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { GamificationModule } from './modules/gamification/gamification.module';
     HealthModule,
     WeeklyPlansModule,
     GamificationModule,
+    RoadmapModule,
   ],
 })
 export class AppModule {}

@@ -1,0 +1,9 @@
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { TimeModule } from '../../common/application-clock';
+import { ROADMAP_MODEL, roadmapSchema } from './persistence/models/roadmap.model';
+import { RoadmapRepository } from './persistence/repositories/roadmap.repository';
+import { RoadmapService } from './business/services/roadmap.service';
+import { RoadmapController } from './api/controllers/roadmap.controller';
+@Module({ imports: [TimeModule, MongooseModule.forFeature([{ name: ROADMAP_MODEL, schema: roadmapSchema }])], providers: [RoadmapRepository, RoadmapService], controllers: [RoadmapController], exports: [RoadmapService] })
+export class RoadmapModule {}
