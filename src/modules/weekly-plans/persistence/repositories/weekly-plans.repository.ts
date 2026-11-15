@@ -1,8 +1,9 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import { WEEKLY_PLAN_MODEL } from '../models/weekly-plan.model';
-import { WeeklyPlanInput, WeeklyPlanRecord } from '../interfaces/weekly-plan.interface';
+import { StoredTask, WeeklyPlanInput, WeeklyPlanRecord } from '../interfaces/weekly-plan.interface';
+import { TaskStatus } from '../enums/task.enums';
 import { WeeklyPlanResponseDto, WeekSummaryDto } from '../../api/dtos/weekly-plan-response.dto';
 
 @Injectable()
@@ -36,7 +37,12 @@ export class WeeklyPlansRepository implements OnModuleInit {
       ...summary, id: _id.toString(), createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString(),
     }));
   }
-  private toResponse(record: WeeklyPlanRecord): WeeklyPlanResponseDto {
+  recordById(id: string, session: ClientSession) { return this.model.findById(id).session(session).lean().exec(); }
+  transition(id: string, taskId: string, from: TaskStatus, fields: Partial<Pick<StoredTask, 'status' | 'actualMinutes' | 'completedAt' | 'firstCompletedAt'>>, session: ClientSession) {
+    const update = Object.fromEntries(Object.entries(fields).map(([key, value]) => [`tasks.$.${key}`, value]));
+    return this.model.findOneAndUpdate({ _id: id, tasks: { $elemMatch: { id: taskId, status: from } } }, { $set: update }, { session, new: true, runValidators: true }).lean().exec();
+  }
+  toResponse(record: WeeklyPlanRecord): WeeklyPlanResponseDto {
     return {
       id: record._id.toString(), schemaVersion: record.schemaVersion, weekId: record.weekId,
       startDate: record.startDate, endDate: record.endDate, title: record.title,
@@ -46,6 +52,7 @@ export class WeeklyPlansRepository implements OnModuleInit {
         estimatedMinutes: task.estimatedMinutes, xpReward: task.xpReward, priority: task.priority,
         isOptional: task.isOptional, deliverable: task.deliverable,
         actualMinutes: task.actualMinutes, status: task.status, completedAt: task.completedAt?.toISOString() ?? null,
+        firstCompletedAt: task.firstCompletedAt?.toISOString() ?? null,
       })),
       createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString(),
     };

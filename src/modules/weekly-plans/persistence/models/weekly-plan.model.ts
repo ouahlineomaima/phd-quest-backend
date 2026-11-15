@@ -14,6 +14,7 @@ const taskSchema = new Schema<StoredTask>({
   actualMinutes: { type: Number, default: 0, min: 0 },
   status: { type: String, enum: Object.values(TaskStatus), default: TaskStatus.Pending },
   completedAt: { type: Date, default: null },
+  firstCompletedAt: { type: Date, default: null },
 }, { _id: false, strict: 'throw' });
 
 export const weeklyPlanSchema = new Schema<WeeklyPlanRecord>({

@@ -1,7 +1,7 @@
 import { WeeklyPlanInput, TaskInput } from '../../persistence/interfaces/weekly-plan.interface';
 import { TaskStatus } from '../../persistence/enums/task.enums';
 
-export interface SavedTaskDto extends TaskInput { status: TaskStatus; actualMinutes: number; completedAt: string | null; }
+export interface SavedTaskDto extends TaskInput { status: TaskStatus; actualMinutes: number; completedAt: string | null; firstCompletedAt: string | null; }
 export interface WeeklyPlanResponseDto extends Omit<WeeklyPlanInput, 'tasks'> {
   id: string; tasks: SavedTaskDto[]; createdAt: string; updatedAt: string;
 }

@@ -3,6 +3,8 @@ const {playerProgress,levelThreshold}=require('../../dist/modules/gamification/b
 const {streaks}=require('../../dist/modules/daily-activity/business/services/streaks');
 const {localDateAt}=require('../../dist/common/application-clock');
 const {validateEnvironment}=require('../../dist/config/environment');
+const {createValidationPipe}=require('../../dist/common/validation');
+const {CompleteTaskDto,EmptyReopenBodyPipe}=require('../../dist/modules/weekly-plans/api/dtos/task-progress.dto');
 test('player thresholds continue deterministically beyond level six',()=>{
  [0,100,250,450,700,1000,1350].forEach((xp,index)=>{assert.equal(levelThreshold(index+1),xp);assert.equal(playerProgress(xp).playerLevel,index+1);assert.equal(playerProgress(xp).xpIntoLevel,0)});
  assert.equal(playerProgress(99).playerLevel,1);assert.equal(playerProgress(99).xpRemainingToNextLevel,1);
@@ -21,4 +23,10 @@ test('Casablanca midnight and Ramadan offset are explicit, independent of host t
  assert.equal(localDateAt(new Date('2026-02-20T23:30:00Z'),'Africa/Casablanca'),'2026-02-20');
  assert.equal(localDateAt(new Date('2026-03-25T23:30:00Z'),'Africa/Casablanca'),'2026-03-26');
  assert.throws(()=>validateEnvironment({MONGODB_URI:'mongodb://localhost/test',APP_TIMEZONE:'not-a-zone'}),/APP_TIMEZONE/);
+});
+test('task mutation DTOs reject invalid minutes and client-managed progress',async()=>{
+ const decode=value=>createValidationPipe().transform(value,{type:'body',metatype:CompleteTaskDto});
+ assert.equal((await decode({actualMinutes:0})).actualMinutes,0);await decode({});
+ for(const value of [{actualMinutes:-1},{actualMinutes:1441},{actualMinutes:1.5},{actualMinutes:'10'},{actualMinutes:null},{completedAt:'2026-11-15'},{xpAwarded:999}]) await assert.rejects(decode(value));
+ const pipe=new EmptyReopenBodyPipe();pipe.transform({});pipe.transform(undefined);assert.throws(()=>pipe.transform({actualMinutes:1}));
 });
