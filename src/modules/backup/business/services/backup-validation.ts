@@ -1,3 +1,4 @@
+import { validateFocus } from '../../../focus-sessions/business/services/focus-validation';
 import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { plainToInstance } from 'class-transformer';
@@ -67,9 +68,12 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
   const settings = shape(file.settings, ['timezone', 'weeklyBaselineMinutes'], [], 'settings');
   if (settings.timezone !== timezone) invalid('settings.timezone', 'Backup timezone must match the configured application timezone before restoration.');
   oneOf(settings.weeklyBaselineMinutes, [360], 'settings.weeklyBaselineMinutes');
-  const counts = shape(file.counts, [...BACKUP_SECTIONS], [], 'counts');
-  const data = shape(file.data, [...BACKUP_SECTIONS], [], 'data');
+  const requiredSections = BACKUP_SECTIONS.filter(section => section !== 'focusSessions');
+  const counts = shape(file.counts, requiredSections, ['focusSessions'], 'counts');
+  const data = shape(file.data, requiredSections, ['focusSessions'], 'data');
+  if (Object.hasOwn(counts,'focusSessions') !== Object.hasOwn(data,'focusSessions')) invalid('focusSessions','Both focus data and its count must be present together.');
   for (const section of BACKUP_SECTIONS) {
+    if (section === 'focusSessions' && !Object.hasOwn(data,section)) continue;
     const rows = list(data[section], 'data.' + section); integer(counts[section], 'counts.' + section, 0);
     if (counts[section] !== rows.length) invalid('counts.' + section, 'Count does not match the records.');
     for (const row of rows) id(row?.id, section + '.id');
@@ -206,6 +210,19 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
       first_goal: data.goals.some((g: Row) => g.firstCompletedAt && g.firstCompletedAt <= at),
     };
     if (!conditions[row.code]) invalid('achievements.' + row.code, 'Unlocked achievement is missing authoritative historical evidence.');
+  }
+  const focus = data.focusSessions ?? [];
+  unique(focus, row => row.sessionId, 'focusSessions.sessionId');
+  for (const row of focus) {
+    shape(row,['id','sessionId','mode','targetSeconds','startedAt','endedAt','focusedSeconds','taskRef','taskTitle','completionType','appliedAt','appliedMinutes','createdAt','updatedAt'],[],'focusSessions');
+    history(row,'focusSessions',end); timestamp(row.startedAt,'focusSessions.startedAt',end); timestamp(row.endedAt,'focusSessions.endedAt',end);
+    validateFocus(row as any,new Date(end));
+    if (row.endedAt > row.createdAt) invalid('focusSessions','A session cannot be created before it ends.');
+    if (row.taskRef !== null) text(row.taskTitle,'focusSessions.taskTitle',160);
+    else if (row.taskTitle !== null) invalid('focusSessions.taskTitle','Unlinked sessions have no task snapshot.');
+    timestamp(row.appliedAt,'focusSessions.appliedAt',end,true); interval(row.appliedAt,row,'focusSessions.appliedAt');
+    integer(row.appliedMinutes,'focusSessions.appliedMinutes',0,10080);
+    if (row.appliedAt ? !row.taskRef || !tasks.has(row.taskRef) || row.appliedMinutes < 1 || row.appliedMinutes !== Math.floor(row.focusedSeconds/60) : row.appliedMinutes !== 0) invalid('focusSessions','Applied time must reference an existing task exactly once with the floored session minutes.');
   }
   return file as BackupFile;
 }

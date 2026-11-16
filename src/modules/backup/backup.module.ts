@@ -1,3 +1,4 @@
+import { FocusSessionsModule } from '../focus-sessions/focus-sessions.module';
 import { Module } from '@nestjs/common';
 import { TimeModule } from '../../common/application-clock';
 import { WeeklyPlansModule } from '../weekly-plans/weekly-plans.module';
@@ -7,5 +8,5 @@ import { AchievementsModule } from '../achievements/achievements.module';
 import { BackupRepository } from './persistence/repositories/backup.repository';
 import { BackupService } from './business/services/backup.service';
 import { BackupController } from './api/controllers/backup.controller';
-@Module({ imports: [TimeModule, WeeklyPlansModule, RoadmapModule, GoalsModule, AchievementsModule], providers: [BackupRepository, BackupService], controllers: [BackupController] })
+@Module({ imports: [FocusSessionsModule, TimeModule, WeeklyPlansModule, RoadmapModule, GoalsModule, AchievementsModule], providers: [BackupRepository, BackupService], controllers: [BackupController] })
 export class BackupModule {}

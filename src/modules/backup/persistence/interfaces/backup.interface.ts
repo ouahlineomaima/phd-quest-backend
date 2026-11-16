@@ -1,4 +1,4 @@
-export const BACKUP_SECTIONS = ['weeklyPlans', 'xpTransactions', 'dailyActivity', 'roadmapLevels', 'goals', 'achievements'] as const;
+export const BACKUP_SECTIONS = ['weeklyPlans', 'xpTransactions', 'dailyActivity', 'roadmapLevels', 'goals', 'achievements', 'focusSessions'] as const;
 export type BackupSection = typeof BACKUP_SECTIONS[number];
 export interface BackupFile {
   application: 'phd-quest'; schemaVersion: 1; exportedAt: string;
