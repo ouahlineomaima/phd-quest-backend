@@ -1,3 +1,4 @@
+import { FocusSessionsModule } from './modules/focus-sessions/focus-sessions.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnvironment } from './config/environment';
@@ -23,6 +24,7 @@ import { RoadmapModule } from './modules/roadmap/roadmap.module';
     AchievementsModule,
     DashboardModule,
     BackupModule,
+    FocusSessionsModule,
   ],
 })
 export class AppModule {}
