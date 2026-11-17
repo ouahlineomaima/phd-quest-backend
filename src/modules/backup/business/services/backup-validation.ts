@@ -1,4 +1,5 @@
 import { validateFocus } from '../../../focus-sessions/business/services/focus-validation';
+import { validateMeetingBackup } from '../../../supervisor-meetings/business/services/meeting-backup-validation';
 import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { plainToInstance } from 'class-transformer';
@@ -68,12 +69,13 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
   const settings = shape(file.settings, ['timezone', 'weeklyBaselineMinutes'], [], 'settings');
   if (settings.timezone !== timezone) invalid('settings.timezone', 'Backup timezone must match the configured application timezone before restoration.');
   oneOf(settings.weeklyBaselineMinutes, [360], 'settings.weeklyBaselineMinutes');
-  const requiredSections = BACKUP_SECTIONS.filter(section => section !== 'focusSessions');
-  const counts = shape(file.counts, requiredSections, ['focusSessions'], 'counts');
-  const data = shape(file.data, requiredSections, ['focusSessions'], 'data');
-  if (Object.hasOwn(counts,'focusSessions') !== Object.hasOwn(data,'focusSessions')) invalid('focusSessions','Both focus data and its count must be present together.');
+  const optionalSections = ['focusSessions', 'supervisors', 'supervisorMeetings'];
+  const requiredSections = BACKUP_SECTIONS.filter(section => !optionalSections.includes(section));
+  const counts = shape(file.counts, requiredSections, optionalSections, 'counts');
+  const data = shape(file.data, requiredSections, optionalSections, 'data');
+  for (const section of optionalSections) if (Object.hasOwn(counts,section) !== Object.hasOwn(data,section)) invalid(section,'Both data and its count must be present together.');
   for (const section of BACKUP_SECTIONS) {
-    if (section === 'focusSessions' && !Object.hasOwn(data,section)) continue;
+    if (optionalSections.includes(section) && !Object.hasOwn(data,section)) continue;
     const rows = list(data[section], 'data.' + section); integer(counts[section], 'counts.' + section, 0);
     if (counts[section] !== rows.length) invalid('counts.' + section, 'Count does not match the records.');
     for (const row of rows) id(row?.id, section + '.id');
@@ -224,5 +226,6 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
     integer(row.appliedMinutes,'focusSessions.appliedMinutes',0,10080);
     if (row.appliedAt ? !row.taskRef || !tasks.has(row.taskRef) || row.appliedMinutes < 1 || row.appliedMinutes !== Math.floor(row.focusedSeconds/60) : row.appliedMinutes !== 0) invalid('focusSessions','Applied time must reference an existing task exactly once with the floored session minutes.');
   }
+  validateMeetingBackup(data,end);
   return file as BackupFile;
 }

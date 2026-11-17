@@ -12,7 +12,9 @@
                     "test:plans":  "npm run build \u0026\u0026 node --test test/plans/*.test.cjs",
                     "test:plans:smoke":  "node test/plans/api.smoke.cjs",
                     "test:progress":  "npm run build \u0026\u0026 node --test test/progress/*.test.cjs",
-                    "test:progress:transactions":  "node test/progress/transactions.check.cjs"
+                    "test:progress:transactions":  "node test/progress/transactions.check.cjs",
+                    "test:meetings": "node --test test/meetings/*.test.cjs test/meetings/meetings.check.cjs",
+                    "test:meetings:browser": "node test/meetings/browser.check.cjs"
                 },
     "dependencies":  {
                          "@nestjs/common":  "^11.1.0",
