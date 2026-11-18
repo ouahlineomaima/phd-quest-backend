@@ -143,7 +143,7 @@ npm run test:integration  # Build + live rs0 transaction test; requires MONGODB_
 npm run test:plans        # Build + focused weekly-plan safety tests
 npm run test:progress     # Build + focused completion/level/streak rules
 npm run test:progress:transactions # Live rs0 check; creates and drops only its own UUID database
-npm run test:plans:smoke  # Explicit live API/DB check with own test-record cleanup
+npm run test:plans:smoke -- --isolated # Requires explicit SMOKE_MONGODB_URI below; creates its own API
 ```
 
 For host integration tests, export MONGODB_URI in the shell; the standalone test runner does not load `.env`. From `infra/`, use the container environment instead:
@@ -160,3 +160,17 @@ HTTP test routes exist only in test modules, never in production AppModule. Heal
 See [Phase 2 validation](infra/validation/PHASE2.md) for executed results. Optional pushes and local Conventional Commits are documented in AGENTS.md. Stop after the requested phase.
 
 Implementation references: [Nest configuration](https://docs.nestjs.com/techniques/configuration), [DTO validation](https://docs.nestjs.com/techniques/validation), [exception filters](https://docs.nestjs.com/exception-filters), and [MongoDB integration](https://docs.nestjs.com/techniques/mongodb).
+
+### Isolated plan smoke test
+
+Set `SMOKE_MONGODB_URI` explicitly to a **new empty** database named `phd_quest_smoke_<32 hex UUID>` on your test replica set, then run `npm run test:plans:smoke -- --isolated` after building. Example (PowerShell):
+
+```powershell
+$testId = [guid]::NewGuid().ToString('N')
+$env:SMOKE_MONGODB_URI = "mongodb://localhost:27017/phd_quest_smoke_${testId}?replicaSet=rs0&directConnection=true"
+npm run test:plans:smoke -- --isolated
+```
+
+The script rejects `API_BASE_URL`, missing opt-in, real database names and nonempty targets. It creates its own Nest application on an ephemeral loopback port, verifies the connection, uses supported completion APIs and drops only its database after checking an ownership marker. It never falls back to the running app.
+
+Stage 1 record preconditions, trusted browser origins and backup token policy are documented in [Stage 1 safety](docs/STAGE1-SAFETY.md).

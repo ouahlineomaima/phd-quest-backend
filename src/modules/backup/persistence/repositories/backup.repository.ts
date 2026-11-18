@@ -30,7 +30,7 @@ export class BackupRepository {
     for (const section of BACKUP_SECTIONS) {
       const rows = await this.model(section).collection.find({}, { session }).sort({ _id: 1 }).toArray();
       data[section] = rows.map(row => {
-        const { _id, __v, ...fields } = row;
+        const { _id, __v, editVersion, ...fields } = row;
         return JSON.parse(JSON.stringify({ id: _id.toString(), ...fields }));
       });
     }

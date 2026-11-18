@@ -1,3 +1,4 @@
+import { assertEditVersion, editVersion, editFilter, editUpdate } from '../../../../database/edit-version';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { ClientSession, Connection, Types } from 'mongoose';
@@ -20,7 +21,7 @@ function required(input: object, fields: string[]) { for (const field of fields)
 // ES2023 DTO instances include unset class fields. They must never overwrite saved
 // note sections or action defaults when handling a partial update.
 function defined<T extends object>(input:T) {return Object.fromEntries(Object.entries(input).filter(([,value])=>value!==undefined)) as Partial<T>;}
-function response<T extends {_id:Types.ObjectId}>(record:T) { const {_id,__v,...fields}=record as T & {__v?:number}; return {id:_id.toString(),...fields}; }
+function response<T extends {_id:Types.ObjectId;editVersion?:string}>(record:T) { const {_id,__v,...fields}=record as T & {__v?:number}; return {id:_id.toString(),...fields,editVersion:editVersion(record)}; }
 function archiveFilter(value='active') { return value==='all'?{}: {archivedAt:value==='archived'?{$ne:null}:null}; }
 @Injectable()
 export class MeetingsService {
@@ -37,8 +38,8 @@ export class MeetingsService {
   }
   async supervisors(archived?:string) {return this.repository.supervisors.find(archiveFilter(archived)).sort({name:1,_id:1}).lean().then(rows=>rows.map(response));}
   createSupervisor(input:CreateSupervisorDto) { required(input,['name']);return applicationWrite(this.connection,async session=>{const [row]=await this.repository.supervisors.create([{...input,role:input.role??'primary'}],{session});return response(row.toObject());}); }
-  editSupervisor(id:string,input:SupervisorFieldsDto) {return applicationWrite(this.connection,async session=>{this.editable(await this.supervisor(id,session));const row=await this.repository.supervisors.findByIdAndUpdate(id,{$set:input},{session,new:true,runValidators:true}).lean();return response(row!);});}
-  archiveSupervisor(id:string) {return applicationWrite(this.connection,async session=>{const old=await this.supervisor(id,session);if(old.archivedAt)return response(old);const row=await this.repository.supervisors.findByIdAndUpdate(id,{$set:{archivedAt:this.clock.now()}},{session,new:true}).lean();return response(row!);});}
+  editSupervisor(id:string,input:SupervisorFieldsDto,version?:string) {return applicationWrite(this.connection,async session=>{const old=await this.supervisor(id,session);assertEditVersion(old,version);this.editable(old);const row=await this.repository.supervisors.findOneAndUpdate(editFilter(old),editUpdate({$set:input}),{session,new:true,runValidators:true}).lean();return response(row!);});}
+  archiveSupervisor(id:string,version?:string) {return applicationWrite(this.connection,async session=>{const old=await this.supervisor(id,session);assertEditVersion(old,version);if(old.archivedAt)return response(old);const row=await this.repository.supervisors.findOneAndUpdate(editFilter(old),editUpdate({$set:{archivedAt:this.clock.now()}}),{session,new:true}).lean();return response(row!);});}
   private async references(input:MeetingFieldsDto,session:ClientSession,previous?:MeetingRecord) {
     if(input.supervisorIds!==undefined) {
       if(!input.supervisorIds.length)throw new BadRequestException('Select at least one supervisor.');
@@ -60,26 +61,26 @@ export class MeetingsService {
     return rows.map(row=>({...response(row),scheduledLocal:meetingLocalTime(row.scheduledAt,this.clock.timezone),scheduledLabel:meetingTimeLabel(row.scheduledAt,this.clock.timezone),supervisors:row.supervisorIds.map(id=>{const s=bySupervisor.get(id);return s?response(s):{id,name:'Unavailable supervisor',missing:true,archivedAt:null};}),
       linkedGoals:row.goalIds.map(id=>{const g=byGoal.get(id);return g?{id,title:g.title,status:g.status,missing:false}:{id,title:'Unavailable goal',status:null,missing:true};}),
       linkedCheckpoints:row.checkpointRefs.map(ref=>{const level=levels.find(l=>l.levelNumber===ref.levelNumber),checkpoint=level?.checkpoints.find((c:{id:string})=>c.id===ref.checkpointId);return {...ref,title:checkpoint?.title??'Unavailable checkpoint',completed:checkpoint?.completed??null,missing:!checkpoint};}),
-      actions:row.actions.map(action=>{const valid=action.linkedTaskIds.flatMap(source=>byTask.has(source)?[byTask.get(source)!]:[]);return {...action,meetingId:row._id.toString(),linkedTasks:action.linkedTaskIds.map(source=>byTask.get(source)??{sourceId:source,weekId:source.split(':')[0],taskId:source.split(':')[1],title:'Unavailable task',status:null,date:'',missing:true}),progress:linkedProgress(valid,action.linkedTaskIds.length)};}),
+      actions:row.actions.map(action=>{const valid=action.linkedTaskIds.flatMap(source=>byTask.has(source)?[byTask.get(source)!]:[]);return {...action,meetingVersion:editVersion(row),meetingId:row._id.toString(),linkedTasks:action.linkedTaskIds.map(source=>byTask.get(source)??{sourceId:source,weekId:source.split(':')[0],taskId:source.split(':')[1],title:'Unavailable task',status:null,date:'',missing:true}),progress:linkedProgress(valid,action.linkedTaskIds.length)};}),
     }));
   }
   list(filter:MeetingFilterDto={}) { return this.read(async session=>({timezone:this.clock.timezone,items:await this.details(await this.repository.meetings.find({...archiveFilter(filter.archived),...(filter.status?{status:filter.status}:{}),...(filter.supervisorId?{supervisorIds:filter.supervisorId}:{})}).sort({scheduledAt:1,_id:1}).session(session).lean(),session)})); }
   detail(id:string) {return this.read(async session=>({timezone:this.clock.timezone,...(await this.details([await this.meeting(id,session)],session))[0]}));}
   create(input:CreateMeetingDto) {required(input,['title','supervisorIds']);if(!input.scheduledAt&&!input.scheduledLocal)throw new BadRequestException('A scheduled date and time is required.');const fields=this.fields(input);return applicationWrite(this.connection,async session=>{await this.references(input,session);const [record]=await this.repository.meetings.create([{...fields,type:input.type??'online'}],{session});return (await this.details([record.toObject()],session))[0];});}
-  edit(id:string,input:MeetingFieldsDto) {return applicationWrite(this.connection,async session=>{const old=await this.meeting(id,session);this.editable(old);await this.references(input,session,old);const fields={...this.fields(input),...(input.notes?{notes:{...old.notes,...defined(input.notes)}}:{})};const record=await this.repository.meetings.findByIdAndUpdate(id,{$set:fields},{session,new:true,runValidators:true}).lean();return (await this.details([record!],session))[0];});}
-  status(id:string,status:MeetingRecord['status']) {return applicationWrite(this.connection,async session=>{this.editable(await this.meeting(id,session));const row=await this.repository.meetings.findByIdAndUpdate(id,{$set:{status}},{session,new:true,runValidators:true}).lean();return (await this.details([row!],session))[0];});}
-  archive(id:string) {return applicationWrite(this.connection,async session=>{const old=await this.meeting(id,session);if(old.archivedAt)return response(old);const row=await this.repository.meetings.findByIdAndUpdate(id,{$set:{archivedAt:this.clock.now()}},{session,new:true}).lean();return response(row!);});}
-  action(id:string,actionId:string|null,input:ActionFieldsDto,remove=false) {
+  edit(id:string,input:MeetingFieldsDto,version?:string) {return applicationWrite(this.connection,async session=>{const old=await this.meeting(id,session);assertEditVersion(old,version);this.editable(old);await this.references(input,session,old);const fields={...this.fields(input),...(input.notes?{notes:{...old.notes,...defined(input.notes)}}:{})};const record=await this.repository.meetings.findOneAndUpdate(editFilter(old),editUpdate({$set:fields}),{session,new:true,runValidators:true}).lean();return (await this.details([record!],session))[0];});}
+  status(id:string,status:MeetingRecord['status'],version?:string) {return applicationWrite(this.connection,async session=>{const old=await this.meeting(id,session);assertEditVersion(old,version);this.editable(old);const row=await this.repository.meetings.findOneAndUpdate(editFilter(old),editUpdate({$set:{status}}),{session,new:true,runValidators:true}).lean();return (await this.details([row!],session))[0];});}
+  archive(id:string,version?:string) {return applicationWrite(this.connection,async session=>{const old=await this.meeting(id,session);assertEditVersion(old,version);if(old.archivedAt)return response(old);const row=await this.repository.meetings.findOneAndUpdate(editFilter(old),editUpdate({$set:{archivedAt:this.clock.now()}}),{session,new:true}).lean();return response(row!);});}
+  action(id:string,actionId:string|null,input:ActionFieldsDto,remove=false,version?:string) {
     if(!actionId)required(input,['title','phase']);else this.id(actionId);
     return applicationWrite(this.connection,async session=>{
-      const meeting=await this.meeting(id,session);this.editable(meeting);
+      const meeting=await this.meeting(id,session);assertEditVersion(meeting,version);this.editable(meeting);
       const old=actionId?meeting.actions.find(a=>a.id===actionId):undefined;if(actionId&&!old)throw new NotFoundException('Meeting action not found.');
       if(input.dueDate!=null&&calendarOrdinal(input.dueDate)===null)throw new BadRequestException('Due date must be a real calendar date.');
       if(input.linkedTaskIds!==undefined){validTaskReferences(input.linkedTaskIds);const available=await this.repository.taskStates(input.linkedTaskIds,session);if(input.linkedTaskIds.some(source=>!available.some(t=>t.sourceId===source)&&!old?.linkedTaskIds.includes(source)))throw new BadRequestException('New task links must reference existing weekly tasks.');}
       const now=this.clock.now(),newAction={...(old??{id:new Types.ObjectId().toString(),description:'',dueDate:null,status:'pending',linkedTaskIds:[],createdAt:now}),...defined(input),updatedAt:now} as MeetingAction;
       if(!old&&meeting.actions.length>=200)throw new BadRequestException('A meeting supports at most 200 actions.');
       const actions=remove?meeting.actions.filter(a=>a.id!==actionId):old?meeting.actions.map(a=>a.id===actionId?newAction:a):[...meeting.actions,newAction];
-      const row=await this.repository.meetings.findByIdAndUpdate(id,{$set:{actions}},{session,new:true,runValidators:true}).lean();return (await this.details([row!],session))[0];
+      const row=await this.repository.meetings.findOneAndUpdate(editFilter(meeting),editUpdate({$set:{actions}}),{session,new:true,runValidators:true}).lean();return (await this.details([row!],session))[0];
     });
   }
   actions(filter:ActionFilterDto={}) {if(filter.dueDate&&calendarOrdinal(filter.dueDate)===null)throw new BadRequestException('Invalid action due date.');return this.read(async session=>{

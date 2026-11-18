@@ -12,7 +12,7 @@ test('Supervisor Meeting Tracker: isolated API, relationships, history and atomi
  try{
   source=await create(uris[0],0);target=await create(uris[1],1);
   const base=`http://127.0.0.1:${source.getHttpServer().address().port}/api`,backup=source.get(Backup),targetBackup=target.get(Backup),plans=source.get(Plans),tasks=source.get(Tasks),goals=source.get(Goals),service=source.get(Meetings),connection=source.get(getConnectionToken()),clock=source.get(Clock);
-  async function call(path,method='GET',body,status=200){const res=await fetch(base+path,{method,headers:{'content-type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});const value=await res.json();assert.equal(res.status,status,JSON.stringify(value));return value;}
+  async function call(path,method='GET',body,status=200){let version;const parts=path.split('/').filter(Boolean);if(method!=='GET'&&parts[1]&&(method!=='POST'||parts[2]==='actions')){const response=await fetch(base+(parts[0]==='supervisors'?'/supervisors?archived=all':'/supervisor-meetings/'+parts[1]));const current=await response.json();version=(Array.isArray(current)?current.find(r=>r.id===parts[1]):current)?.editVersion;}const res=await fetch(base+path,{method,headers:{'content-type':'application/json',...(version?{'if-match':JSON.stringify(version)}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});const value=await res.json();assert.equal(res.status,status,JSON.stringify(value));return value;}
   const example=require('../../docs/contracts/weekly-plan.v1.example.json');
   const makeWeek=async weekId=>{const end=new Date(weekId+'T12:00:00Z');end.setUTCDate(end.getUTCDate()+6);return plans.confirm({...structuredClone(example),weekId,startDate:weekId,endDate:end.toISOString().slice(0,10),tasks:[{...example.tasks[0],id:'shared-task',date:weekId,xpReward:10}]});};
   const weekA=await makeWeek('2026-11-15'),weekB=await makeWeek('2026-11-22'),refs=['2026-11-15:shared-task','2026-11-22:shared-task'];
@@ -43,7 +43,7 @@ test('Supervisor Meeting Tracker: isolated API, relationships, history and atomi
   });
   await t.test('rescheduling, independently editable notes, completion, archived supervisors and filters',async()=>{
    const old=await call('/supervisor-meetings/'+meeting.id);await call('/supervisor-meetings/'+meeting.id,'PATCH',{scheduledAt:new Date(Date.now()+172800000).toISOString(),notes:{agenda:'Updated agenda'}});
-   let detail=await call('/supervisor-meetings/'+meeting.id);assert.equal(detail.notes.feedback,old.notes.feedback);assert.equal(detail.notes.agenda,'Updated agenda');assert.deepEqual(detail.actions,old.actions);
+   let detail=await call('/supervisor-meetings/'+meeting.id);assert.equal(detail.notes.feedback,old.notes.feedback);assert.equal(detail.notes.agenda,'Updated agenda');assert.deepEqual(detail.actions.map(({meetingVersion,...a})=>a),old.actions.map(({meetingVersion,...a})=>a));
    await call(`/supervisor-meetings/${meeting.id}/status`,'PATCH',{status:'completed'});detail=await call('/supervisor-meetings/'+meeting.id);assert.equal(detail.actions.find(x=>x.id===post.id).status,'pending');assert.equal(detail.notes.decisions,'Keep direction');
    await call('/supervisors/'+b.id+'/archive','PATCH',{});assert.equal((await call('/supervisors')).length,1);assert.equal((await call('/supervisors?archived=archived'))[0].id,b.id);detail=await call('/supervisor-meetings/'+meeting.id);assert.ok(detail.supervisors.find(x=>x.id===b.id).archivedAt);
    await call('/supervisor-meetings/'+meeting.id,'PATCH',{title:'Rescheduled review',supervisorIds:[a.id,b.id]});await call('/supervisor-meetings','POST',{title:'Archived not allowed',scheduledAt:future,supervisorIds:[b.id]},400);
@@ -53,7 +53,11 @@ test('Supervisor Meeting Tracker: isolated API, relationships, history and atomi
    const summary=await call('/supervisor-meetings/summary');assert.equal(summary.completed,1);assert.equal(summary.preparation,1);assert.equal(summary.followUp,2);assert.equal(summary.overdue,1);assert.equal((await call('/supervisor-meetings/'+other.id)).status,'scheduled');
   });
   await t.test('concurrent action writes and missing historical references remain safe',async()=>{
-   await Promise.all(['Concurrent A','Concurrent B'].map(title=>call(`/supervisor-meetings/${other.id}/actions`,'POST',{title,phase:'pre_meeting'},201)));assert.equal((await call('/supervisor-meetings/'+other.id)).actions.length,3);
+   const version=(await call('/supervisor-meetings/'+other.id)).editVersion;
+   const results=await Promise.all(['Concurrent A','Concurrent B'].map(title=>fetch(`${base}/supervisor-meetings/${other.id}/actions`,{method:'POST',headers:{'content-type':'application/json','if-match':JSON.stringify(version)},body:JSON.stringify({title,phase:'pre_meeting'})})));
+   assert.deepEqual(results.map(r=>r.status).sort(),[201,409]);const winner=await results.find(r=>r.status===201).json();
+   const missing=['Concurrent A','Concurrent B'].find(title=>!winner.actions.some(a=>a.title===title));await call(`/supervisor-meetings/${other.id}/actions`,'POST',{title:missing,phase:'pre_meeting'},201);
+   assert.equal((await call('/supervisor-meetings/'+other.id)).actions.length,3);
    // This deliberate replacement is confined to the owned disposable database.
    await connection.collection('weekly_plans').updateOne({_id:new mongoose.Types.ObjectId(weekA.id)},{$pull:{tasks:{id:'shared-task'}}});
    // Remove its dependent immutable records in the owned fixture so the existing global backup validator remains valid.
@@ -71,7 +75,7 @@ test('Supervisor Meeting Tracker: isolated API, relationships, history and atomi
   let saved;
   await t.test('meeting archive preserves notes/actions; action removal leaves weekly records intact',async()=>{
    const snapshot=(await backup.export()).data;const action=(await call('/supervisor-meetings/'+other.id)).actions[1];await call(`/supervisor-meetings/${other.id}/actions/${action.id}`,'DELETE',{});assert.equal((await call('/supervisor-meetings/'+other.id)).actions.length,2);assert.deepEqual((await backup.export()).data.weeklyPlans,snapshot.weeklyPlans);
-   const prior=await call('/supervisor-meetings/'+meeting.id);await call('/supervisor-meetings/'+meeting.id+'/archive','PATCH',{});const archived=await call('/supervisor-meetings/'+meeting.id);assert.deepEqual(archived.notes,prior.notes);assert.deepEqual(archived.actions,prior.actions);assert.deepEqual(archived.supervisorIds,prior.supervisorIds);assert.equal((await call('/supervisor-meetings')).items.length,1);assert.equal((await call('/supervisor-meetings?archived=archived')).items.length,1);assert.equal((await call('/supervisor-meetings/actions?archived=archived')).items.length,2);
+   const prior=await call('/supervisor-meetings/'+meeting.id);await call('/supervisor-meetings/'+meeting.id+'/archive','PATCH',{});const archived=await call('/supervisor-meetings/'+meeting.id);assert.deepEqual(archived.notes,prior.notes);assert.deepEqual(archived.actions.map(({meetingVersion,...a})=>a),prior.actions.map(({meetingVersion,...a})=>a));assert.deepEqual(archived.supervisorIds,prior.supervisorIds);assert.equal((await call('/supervisor-meetings')).items.length,1);assert.equal((await call('/supervisor-meetings?archived=archived')).items.length,1);assert.equal((await call('/supervisor-meetings/actions?archived=archived')).items.length,2);
    await call('/supervisor-meetings/'+meeting.id,'PATCH',{title:'Not allowed'},409);await call(`/supervisor-meetings/${meeting.id}/actions`,'POST',{title:'Not allowed',phase:'pre_meeting'},409);
    saved=await backup.export();assert.equal(saved.schemaVersion,1);assert.equal(saved.counts.supervisors,2);assert.equal(saved.counts.supervisorMeetings,2);assert.equal(saved.counts.focusSessions,1);
   });

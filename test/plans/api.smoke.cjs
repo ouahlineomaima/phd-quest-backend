@@ -1,4 +1,5 @@
-// Explicit live smoke check. Own records only; never deletes by week/date alone.
+// Opt-in owned API smoke test. No external application or real database is accepted.
+if (!process.argv.includes('--isolated')) { console.error('Refusing live smoke test: pass --isolated and explicit SMOKE_MONGODB_URI for an empty UUID database.'); process.exit(1); }
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const mongoose = require('mongoose');
@@ -6,9 +7,11 @@ const { calendarDates } = require('../../dist/modules/weekly-plans/business/serv
 const example = require('../../docs/contracts/weekly-plan.v1.example.json');
 
 (async () => {
-  const base = process.env.API_BASE_URL || 'http://localhost:3000/api';
+  const {target,isolated}=require('../safety/isolated.cjs');
+  target(process.env.SMOKE_MONGODB_URI,process.env.API_BASE_URL);
+  const ownedApp=await isolated(process.env.SMOKE_MONGODB_URI);
+  const {base,connection}=ownedApp;
   const marker = `Phase 4 API validation ${randomUUID()}`;
-  const connection = await mongoose.createConnection(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 }).asPromise();
   const collection = connection.db.collection('weekly_plans');
   const owned = [];
   const post = (endpoint, body) => fetch(`${base}/weekly-plans/import/${endpoint}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: typeof body === 'string' ? body : JSON.stringify(body) });
@@ -35,12 +38,14 @@ const example = require('../../docs/contracts/weekly-plan.v1.example.json');
     assert.equal(await collection.countDocuments({ weekId: start }), 1);
     assert.equal((await collection.findOne({ _id: new mongoose.Types.ObjectId(saved.id), title: marker })).tasks[0].id, plan.tasks[0].id);
     const duplicate = await post('preview', plan); assert.equal((await duplicate.json()).canImport, false);
-    const when = new Date('2099-01-04T12:00:00Z');
-    await collection.updateOne({ _id: new mongoose.Types.ObjectId(saved.id), title: marker }, { $set: { 'tasks.0.status': 'completed', 'tasks.0.actualMinutes': 35, 'tasks.0.completedAt': when } });
+    const complete=()=>fetch(`${base}/weekly-plans/${saved.id}/tasks/${saved.tasks[0].id}/complete`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({actualMinutes:35})});
+    const completed=await complete();assert.equal(completed.status,200);const awarded=await completed.json();assert.equal(awarded.xpAwarded,saved.tasks[0].xpReward);
+    const repeated=await complete();assert.equal((await repeated.json()).xpAwarded,0);
+    const when=awarded.plan.tasks[0].completedAt;
     const conflict = await post('confirm', plan); assert.equal(conflict.status, 409); assert.equal((await conflict.json()).code, 'WEEK_EXISTS');
     const detail = await fetch(`${base}/weekly-plans/${saved.id}`); assert.equal(detail.status, 200);
     const retrieved = await detail.json(); assert.equal(retrieved.tasks[0].status, 'completed'); assert.equal(retrieved.tasks[0].actualMinutes, 35);
-    assert.equal(retrieved.tasks[0].completedAt, when.toISOString());
+    assert.equal(retrieved.tasks[0].completedAt, when);
     const list = await (await fetch(`${base}/weekly-plans`)).json(); assert.ok(list.some(item => item.id === saved.id));
     assert.ok(list.every(item => !('tasks' in item)));
     assert.ok(list.every((item, index) => index === 0 || list[index - 1].startDate >= item.startDate));
@@ -51,6 +56,6 @@ const example = require('../../docs/contracts/weekly-plan.v1.example.json');
   } finally {
     for (const id of owned) await collection.deleteOne({ _id: new mongoose.Types.ObjectId(id), title: marker });
     assert.equal(await collection.countDocuments({ title: marker }), 0, 'Own smoke record cleanup');
-    await connection.close();
+    await ownedApp.cleanup();
   }
 })().catch(error => { console.error(error); process.exitCode = 1; });

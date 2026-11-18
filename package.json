@@ -16,7 +16,9 @@
                     "test:meetings": "node --test test/meetings/*.test.cjs test/meetings/meetings.check.cjs",
                     "test:meetings:browser": "node test/meetings/browser.check.cjs",
                     "test:skills": "node --test test/skills/*.test.cjs",
-                    "test:skills:browser": "node test/skills/browser.check.cjs"
+                    "test:skills:browser": "node test/skills/browser.check.cjs",
+                    "test:safety": "node --test test/safety/stage1.test.cjs",
+                    "test:safety:browser": "node test/safety/browser.check.cjs"
                 },
     "dependencies":  {
                          "@nestjs/common":  "^11.1.0",

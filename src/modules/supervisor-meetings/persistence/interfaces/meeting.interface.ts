@@ -1,5 +1,5 @@
 import { Types } from 'mongoose';
-export interface SupervisorRecord {
+export interface SupervisorRecord { editVersion?:string;
   _id: Types.ObjectId; name: string; role: 'primary'|'co_supervisor'|'other';
   institution: string; email: string; notes: string; archivedAt: Date|null; createdAt: Date; updatedAt: Date;
 }
@@ -8,7 +8,7 @@ export interface MeetingAction {
   id: string; phase: 'pre_meeting'|'post_meeting'; title: string; description: string;
   dueDate: string|null; status: 'pending'|'in_progress'|'completed'; linkedTaskIds: string[]; createdAt: Date; updatedAt: Date;
 }
-export interface MeetingRecord {
+export interface MeetingRecord { editVersion?:string;
   _id: Types.ObjectId; title: string; scheduledAt: Date; plannedDurationMinutes: number|null;
   type: 'in_person'|'online'|'hybrid'; location: string; status: 'scheduled'|'completed'|'cancelled'; supervisorIds: string[];
   notes: { agenda: string; discussion: string; feedback: string; decisions: string };

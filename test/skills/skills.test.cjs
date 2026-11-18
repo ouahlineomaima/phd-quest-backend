@@ -12,7 +12,7 @@ test('Research Skill Tree: isolated lifecycle, manual proficiency, readiness, hi
  try{
   source=await create(uris[0],0);target=await create(uris[1],1);
   const base=`http://127.0.0.1:${source.getHttpServer().address().port}/api/research-skills`,backup=source.get(Backup),targetBackup=target.get(Backup),connection=source.get(getConnectionToken()),plans=source.get(Plans),tasks=source.get(Tasks),goals=source.get(Goals),roadmap=source.get(Roadmap);
-  async function call(path='',method='GET',body,status=200){const response=await fetch(base+path,{method,headers:{'content-type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});const result=await response.json();assert.equal(response.status,status,JSON.stringify(result));return result;}
+  async function call(path='',method='GET',body,status=200){let version;const parts=path.split('/').filter(Boolean);if(method!=='GET'&&parts.length&&(method!=='POST'||parts[1]==='evidence')){const current=await(await fetch(base)).json();const row=parts[0]==='categories'?current.categories.find(c=>c.id===parts[1]):current.skills.find(c=>c.id===parts[0]);version=row?.editVersion;}const response=await fetch(base+path,{method,headers:{'content-type':'application/json',...(version?{'if-match':JSON.stringify(version)}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});const result=await response.json();assert.equal(response.status,status,JSON.stringify(result));return result;}
   const tree=()=>call(),find=async id=>(await tree()).skills.find(s=>s.id===id),targeted=(skill,level)=>skill.targeted.find(g=>g.targetLevel===level),untargeted=(skill,type)=>skill.untargeted.find(g=>g.sourceType===type);
   let category,skill,second,third,evidence,saved;
   const initial=(await backup.export()).data;
