@@ -65,7 +65,7 @@ test('Research Skill Tree: isolated lifecycle, manual proficiency, readiness, hi
   });
   await t.test('missing historical links suppress targeted readiness and round trip transparently',async()=>{
    const current=await find(skill.id),missing=association('research_goal','0'.repeat(24),2);
-   await connection.collection('research_skills').updateOne({_id:new mongoose.Types.ObjectId(skill.id)},{$set:{associations:[...current.associations.map(({sourceType,sourceId,targetLevel})=>({sourceType,sourceId,targetLevel})),missing]}});
+   await connection.collection('research_skills').updateOne({_id:new mongoose.Types.ObjectId(skill.id)},{$set:{associations:[...current.associations.map(({sourceType,sourceId,targetLevel,checkpointIdentity})=>({sourceType,sourceId,targetLevel,...(checkpointIdentity?{checkpointIdentity}:{})})),missing]}});
    const resolved=await find(skill.id);assert.equal(targeted(resolved,2).missing,1);assert.equal(targeted(resolved,2).percentage,null);assert.equal(targeted(resolved,2).ready,false);assert.ok(resolved.associations.some(a=>a.missing));
    await call('/'+skill.id,'PATCH',{description:'Historical missing link retained'});saved=await backup.export();const preview=await targetBackup.preview(saved);await targetBackup.restore({backup:saved,...preview,confirmation:'REPLACE ALL DATA'});assert.deepEqual((await targetBackup.export()).data,saved.data);
   });

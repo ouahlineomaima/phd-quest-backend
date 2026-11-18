@@ -1,3 +1,4 @@
+import {RoadmapStatus} from '../enums/roadmap.enums';
 import { applicationWrite, applicationRevision } from '../../../../database/application-write';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
@@ -22,8 +23,8 @@ export class RoadmapRepository implements OnModuleInit {
           await this.model.insertMany([preparationCamp()], { session });
         }
         // Preparation is now the current chapter. Pause later progression without erasing work.
-        if (await this.model.exists({ levelNumber: 0, status: 'current' }).session(session)) {
-          await this.model.updateMany({ levelNumber: { $gt: 0 }, status: 'current' }, { $set: { status: 'locked' } }, { session });
+        if (await this.model.exists({ levelNumber: 0, status: RoadmapStatus.Current }).session(session)) {
+          await this.model.updateMany({ levelNumber: { $gt: 0 }, status: RoadmapStatus.Current }, { $set: { status: RoadmapStatus.Locked } }, { session });
         }
       });
     } catch (error) {

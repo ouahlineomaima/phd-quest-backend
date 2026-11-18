@@ -174,3 +174,5 @@ npm run test:plans:smoke -- --isolated
 The script rejects `API_BASE_URL`, missing opt-in, real database names and nonempty targets. It creates its own Nest application on an ephemeral loopback port, verifies the connection, uses supported completion APIs and drops only its database after checking an ownership marker. It never falls back to the running app.
 
 Stage 1 record preconditions, trusted browser origins and backup token policy are documented in [Stage 1 safety](docs/STAGE1-SAFETY.md).
+
+Stage 2 read-only GET behavior, explicit achievement evaluation, typed domain contracts and the approved historical checkpoint policy are documented in [Stage 2 architecture](docs/STAGE2-ARCHITECTURE.md).

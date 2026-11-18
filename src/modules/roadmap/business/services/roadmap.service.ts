@@ -1,3 +1,5 @@
+import {RoadmapStatus} from '../../persistence/enums/roadmap.enums';
+import { AchievementsService } from '../../../achievements/business/services/achievements.service';
 import type { RoadmapResponse } from '../../api/dtos/roadmap-response.dto';
 import { GoalsService } from '../../../goals/business/services/goals.service';
 import { goalContribution } from '../../../goals/business/services/goal-progress';
@@ -11,7 +13,7 @@ import { RoadmapRepository } from '../../persistence/repositories/roadmap.reposi
 import { CheckpointUpdateDto } from '../../api/dtos/roadmap.dto';
 @Injectable()
 export class RoadmapService {
-  constructor(private readonly repository: RoadmapRepository, private readonly clock: ApplicationClock, @InjectConnection() private readonly connection: Connection, private readonly goals: GoalsService) {}
+  constructor(private readonly repository: RoadmapRepository, private readonly clock: ApplicationClock, @InjectConnection() private readonly connection: Connection, private readonly goals: GoalsService, private readonly achievements:AchievementsService) {}
   async list(session?: ClientSession):Promise<RoadmapResponse[]> {
     if(!session)return this.connection.transaction(tx=>this.list(tx),{readConcern:{level:'snapshot'}});
     return this.withProgress(await this.repository.list(session),session);
@@ -38,7 +40,7 @@ export class RoadmapService {
   checkpoint(number: number, id: string, input: CheckpointUpdateDto) {
     return applicationWrite(this.connection, async session => {
       const level = await this.record(number, session);
-      if (level.status !== 'current') throw new ConflictException('Only the current research level can be corrected or validated. Completed levels are immutable.');
+      if (level.status !== RoadmapStatus.Current) throw new ConflictException('Only the current research level can be corrected or validated. Completed levels are immutable.');
       const index = level.checkpoints.findIndex(checkpoint => checkpoint.id === id);
       if (index < 0) throw new NotFoundException('Checkpoint not found.');
       const checkpoint = level.checkpoints[index];
@@ -50,13 +52,14 @@ export class RoadmapService {
       };
       if (input.evidence !== undefined) fields[`checkpoints.${index}.evidence`] = input.evidence.trim();
       await this.repository.update(number, fields, session);
+      await this.achievements.evaluateCurrent(session);
       return this.detail(number,session);
     }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
   }
   linkGoals(number:number,id:string,goalIds:string[]) {
     return applicationWrite(this.connection,async session=>{
       const level=await this.record(number,session);
-      if(level.status!=='current')throw new ConflictException('Only the current research chapter can change checkpoint links.');
+      if(level.status!==RoadmapStatus.Current)throw new ConflictException('Only the current research chapter can change checkpoint links.');
       const index=level.checkpoints.findIndex(checkpoint=>checkpoint.id===id);
       if(index<0)throw new NotFoundException('Checkpoint not found.');
       if(!Array.isArray(goalIds)||goalIds.length>100||new Set(goalIds).size!==goalIds.length||goalIds.some(goal=>typeof goal!=='string'||!/^[a-f0-9]{24}$/.test(goal)))throw new BadRequestException('Use up to 100 unique goal IDs.');
@@ -85,15 +88,16 @@ export class RoadmapService {
   complete(number: number) {
     return applicationWrite(this.connection, async session => {
       const level = await this.record(number, session);
-      if (level.status === 'completed') return this.detail(number,session);
-      if (level.status !== 'current' || !level.checkpoints.filter(c => c.mandatory).every(c => c.completed)) throw new ConflictException('Validate all mandatory checkpoints on the current level before completing it.');
-      await this.repository.update(number, { status: 'completed', completedAt: this.clock.now() }, session);
+      if (level.status === RoadmapStatus.Completed) return this.detail(number,session);
+      if (level.status !== RoadmapStatus.Current || !level.checkpoints.filter(c => c.mandatory).every(c => c.completed)) throw new ConflictException('Validate all mandatory checkpoints on the current level before completing it.');
+      await this.repository.update(number, { status: RoadmapStatus.Completed, completedAt: this.clock.now() }, session);
+      await this.achievements.evaluateCurrent(session);
       if (number < 12) {
         // Older workspaces may already contain completed research chapters; preserve them.
-        const next = number === 0 ? (await this.repository.list(session)).find(record => record.levelNumber > 0 && record.status !== 'completed') : await this.record(number + 1, session);
+        const next = number === 0 ? (await this.repository.list(session)).find(record => record.levelNumber > 0 && record.status !== RoadmapStatus.Completed) : await this.record(number + 1, session);
         if (!next) return this.detail(number,session);
-        if (next.status !== 'locked') throw new ConflictException('The next research level is not locked.');
-        await this.repository.update(next.levelNumber, { status: 'current' }, session);
+        if (next.status !== RoadmapStatus.Locked) throw new ConflictException('The next research level is not locked.');
+        await this.repository.update(next.levelNumber, { status: RoadmapStatus.Current }, session);
       }
       return this.detail(number,session);
     }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });

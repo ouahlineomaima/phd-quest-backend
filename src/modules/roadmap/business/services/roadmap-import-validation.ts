@@ -1,3 +1,5 @@
+import {RoadmapStatus} from '../../persistence/enums/roadmap.enums';
+import { randomUUID } from 'node:crypto';
 import { preparationCamp } from './preparation-camp';
 import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
@@ -29,9 +31,9 @@ export function roadmapDigest(roadmap: RoadmapImportDto) { return createHash('sh
 export function importedLevels(roadmap: RoadmapImportDto) {
   return roadmap.levels.map(level => ({ levelNumber: level.levelNumber, year: level.levelNumber === 0 ? null : Math.floor((level.levelNumber - 1) / 4) + 1,
     title: level.title, description: level.description, objectives: level.objectives,
-    checkpoints: level.checkpoints.map(checkpoint => ({ id: checkpoint.id, title: checkpoint.title,
+    checkpoints: level.checkpoints.map(checkpoint => ({ checkpointIdentity:randomUUID(), id: checkpoint.id, title: checkpoint.title,
       ...(checkpoint.description !== undefined ? { description: checkpoint.description } : {}), mandatory: checkpoint.required,
       completed: false, validatedAt: null, firstValidatedAt: null, evidence: '' })),
-    status: level.levelNumber === 0 ? 'current' : 'locked', completedAt: null,
+    status: level.levelNumber === 0 ? RoadmapStatus.Current : RoadmapStatus.Locked, completedAt: null,
   }));
 }

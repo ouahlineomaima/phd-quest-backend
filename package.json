@@ -17,8 +17,10 @@
                     "test:meetings:browser": "node test/meetings/browser.check.cjs",
                     "test:skills": "node --test test/skills/*.test.cjs",
                     "test:skills:browser": "node test/skills/browser.check.cjs",
-                    "test:safety": "node --test test/safety/stage1.test.cjs",
-                    "test:safety:browser": "node test/safety/browser.check.cjs"
+                    "test:safety": "node --test test/safety/stage1.test.cjs test/safety/smoke-cleanup.test.cjs",
+                    "test:safety:browser": "node test/safety/browser.check.cjs",
+                    "test:stage2": "node --test test/safety/stage2.test.cjs test/safety/smoke-cleanup.test.cjs test/contracts/*.test.cjs",
+                    "test:stage2:browser": "node test/safety/stage2-browser.check.cjs"
                 },
     "dependencies":  {
                          "@nestjs/common":  "^11.1.0",

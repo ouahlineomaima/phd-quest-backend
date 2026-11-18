@@ -1,3 +1,4 @@
+import {RoadmapStatus} from '../../persistence/enums/roadmap.enums';
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
@@ -16,7 +17,7 @@ export class RoadmapImportService {
         totals: { levels: roadmap.levels.length, objectives: roadmap.levels.reduce((sum, level) => sum + level.objectives.length, 0),
           checkpoints: roadmap.levels.reduce((sum, level) => sum + level.checkpoints.length, 0),
           requiredCheckpoints: roadmap.levels.reduce((sum, level) => sum + level.checkpoints.filter(c => c.required).length, 0) },
-        existing: { willReplace: levels.length > 0, levels: levels.length, completedLevels: levels.filter(level => level.status === 'completed').length,
+        existing: { willReplace: levels.length > 0, levels: levels.length, completedLevels: levels.filter(level => level.status === RoadmapStatus.Completed).length,
           validatedCheckpoints: levels.reduce((sum, level) => sum + level.checkpoints.filter(c => c.completed).length, 0),
           historicalCheckpointValidations: levels.reduce((sum, level) => sum + level.checkpoints.filter(c => !!c.firstValidatedAt).length, 0) },
         resetsProgress: true, preservesHistoricalAchievements: true,

@@ -13,7 +13,7 @@ export class FocusSessionsService {
   constructor(private readonly repository:FocusSessionsRepository,private readonly clock:ApplicationClock,@InjectConnection() private readonly connection:Connection) {}
   save(input:SaveFocusSessionDto){const fields=validateFocus(input,this.clock.now());return applicationWrite(this.connection,async session=>{
     const existing=await this.repository.find(fields.sessionId,session);
-    if(existing){if(Object.entries(fields).some(([key,value])=>JSON.stringify((existing as any)[key])!==JSON.stringify(value)))throw new ConflictException('This session ID was already saved with different contents.');return existing;}
+    if(existing){if((Object.keys(fields) as (keyof typeof fields)[]).some(key=>JSON.stringify(existing[key])!==JSON.stringify(fields[key])))throw new ConflictException('This session ID was already saved with different contents.');return existing;}
     const task=fields.taskRef?await this.repository.task(fields.taskRef,session):null;
     if(fields.taskRef&&!task)throw new BadRequestException('The selected weekly task no longer exists. The original session remains recoverable locally; restore the task before retrying, or discard the session.');
     return this.repository.insert({...fields,taskTitle:task?.title??null,appliedAt:null,appliedMinutes:0},session);

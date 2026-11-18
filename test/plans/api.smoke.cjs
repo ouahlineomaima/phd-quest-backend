@@ -13,7 +13,6 @@ const example = require('../../docs/contracts/weekly-plan.v1.example.json');
   const {base,connection}=ownedApp;
   const marker = `Phase 4 API validation ${randomUUID()}`;
   const collection = connection.db.collection('weekly_plans');
-  const owned = [];
   const post = (endpoint, body) => fetch(`${base}/weekly-plans/import/${endpoint}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: typeof body === 'string' ? body : JSON.stringify(body) });
   try {
     let start = '2099-01-04';
@@ -32,8 +31,11 @@ const example = require('../../docs/contracts/weekly-plan.v1.example.json');
     assert.equal(result.totals.estimatedMinutes, 75); assert.equal(result.days.length, 7);
     assert.equal(await collection.countDocuments({ title: marker }), 0, 'Preview must not persist');
     const confirmations = await Promise.all([post('confirm', plan), post('confirm', plan)]);
-    assert.deepEqual(confirmations.map(response => response.status).sort(), [201, 409]);
-    const saved = await confirmations.find(response => response.status === 201).json(); owned.push(saved.id);
+    if(process.argv.includes('--fail-after-confirm'))throw new Error('Injected isolated smoke failure after confirmation');
+    const statuses=confirmations.map(response=>response.status).sort();
+    const diagnostics=await Promise.all(confirmations.map(async response=>{const body=await response.clone().json();return {status:response.status,code:body.code,message:body.message};}));
+    assert.deepEqual(statuses,[201,409],JSON.stringify(diagnostics));
+    const saved = await confirmations.find(response => response.status === 201).json();
     assert.equal(saved.tasks[0].status, 'pending'); assert.equal(saved.tasks[0].actualMinutes, 0); assert.equal(saved.tasks[0].completedAt, null);
     assert.equal(await collection.countDocuments({ weekId: start }), 1);
     assert.equal((await collection.findOne({ _id: new mongoose.Types.ObjectId(saved.id), title: marker })).tasks[0].id, plan.tasks[0].id);
@@ -54,8 +56,8 @@ const example = require('../../docs/contracts/weekly-plan.v1.example.json');
     const indexes = await collection.indexes(); assert.ok(indexes.some(index => index.unique && index.key.weekId === 1));
     console.log('PASS: validation, read-only preview, concurrent confirmation, unique index, MongoDB readback, lightweight list/detail, and existing progress preservation.');
   } finally {
-    for (const id of owned) await collection.deleteOne({ _id: new mongoose.Types.ObjectId(id), title: marker });
-    assert.equal(await collection.countDocuments({ title: marker }), 0, 'Own smoke record cleanup');
+    // The verified database was empty before this process created its owner marker.
+    // Drop all test-owned state even when an assertion fails before a saved ID is known.
     await ownedApp.cleanup();
   }
 })().catch(error => { console.error(error); process.exitCode = 1; });

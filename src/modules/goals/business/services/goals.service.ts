@@ -1,3 +1,5 @@
+import { GoalStatus, GoalType } from '../../persistence/enums/goal.enums';
+import { AchievementsService } from '../../../achievements/business/services/achievements.service';
 import type { GoalResponse } from '../../api/dtos/goal-response.dto';
 import { goalProgress } from './goal-progress';
 import { applicationWrite } from '../../../../database/application-write';
@@ -10,7 +12,7 @@ import { GoalsRepository } from '../../persistence/repositories/goals.repository
 import { CreateGoalDto, EditGoalDto, GoalFilterDto } from '../../api/dtos/goal.dto';
 @Injectable()
 export class GoalsService {
- constructor(private readonly repository:GoalsRepository,private readonly clock:ApplicationClock,@InjectConnection() private readonly connection:Connection) {}
+ constructor(private readonly repository:GoalsRepository,private readonly clock:ApplicationClock,@InjectConnection() private readonly connection:Connection,private readonly achievements:AchievementsService) {}
  async list(filter:GoalFilterDto,session?:ClientSession,limit?:number):Promise<GoalResponse[]> {
   if(!session)return this.connection.transaction(tx=>this.list(filter,tx,limit),{readConcern:{level:'snapshot'}});
   return this.withProgress(await this.repository.list(filter,session,limit),session);
@@ -46,14 +48,14 @@ export class GoalsService {
  }
  create(input:CreateGoalDto) { return applicationWrite(this.connection, async session => { await this.references(input,session); return this.response(await this.repository.insert({...input,description:input.description ?? ''},session),session); }); }
  edit(id:string,input:EditGoalDto) { return applicationWrite(this.connection, async session => {
-  const record=await this.detail(id,session); if(record.status==='archived') throw new ConflictException('Archived goals are preserved and cannot be edited.');
+  const record=await this.detail(id,session); if(record.status===GoalStatus.Archived) throw new ConflictException('Archived goals are preserved and cannot be edited.');
   await this.references(input,session); return this.response(await this.repository.update(id,{...input,description:input.description === null ? '' : input.description ?? record.description},session),session);
  }); }
  transition(id:string,action:'complete'|'reopen'|'archive') { return applicationWrite(this.connection, async session => {
-  const record=await this.detail(id,session);const status=action==='complete'?'completed':action==='reopen'?'active':'archived';
+  const record=await this.detail(id,session);const status=action==='complete'?GoalStatus.Completed:action==='reopen'?GoalStatus.Active:GoalStatus.Archived;
   if(record.status===status) return this.response(this.repository.response(record),session);
-  if(record.status==='archived') throw new ConflictException('Archived goals cannot be reopened or completed. Create a new goal to resume this work.');
+  if(record.status===GoalStatus.Archived) throw new ConflictException('Archived goals cannot be reopened or completed. Create a new goal to resume this work.');
   const now=this.clock.now();
-  return this.response(await this.repository.update(id,{status,completedAt:action==='complete'?now:action==='reopen'?null:record.completedAt,firstCompletedAt:action==='complete'?record.firstCompletedAt??now:record.firstCompletedAt},session),session);
+  const updated=await this.repository.update(id,{status,completedAt:action==='complete'?now:action==='reopen'?null:record.completedAt,firstCompletedAt:action==='complete'?record.firstCompletedAt??now:record.firstCompletedAt},session);await this.achievements.evaluateCurrent(session);return this.response(updated,session);
  },{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}}); }
 }

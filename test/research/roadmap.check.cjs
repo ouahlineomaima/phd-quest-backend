@@ -8,11 +8,12 @@ const {RoadmapService} = require('../../dist/modules/roadmap/business/services/r
  const namespace = 'phd_quest_phase6_validation_' + randomUUID().replaceAll('-', '');
  const uri = new URL(process.env.MONGODB_URI); uri.pathname = '/' + namespace;
  const connection = await mongoose.createConnection(uri.toString()).asPromise();
- try {
+ let verified=false;try {
+  assert.equal(connection.name,namespace);assert.equal((await connection.db.listCollections().toArray()).length,0);verified=true;
   const model = connection.model('RoadmapLevel', roadmapSchema);
   const repository = new RoadmapRepository(model, connection);
   await Promise.all([repository.onModuleInit(), repository.onModuleInit()]);
-  const service = new RoadmapService(repository, {now: () => new Date()}, connection);
+  const service = new RoadmapService(repository, {now: () => new Date()}, connection,undefined,{evaluateCurrent:async()=>[]});
   assert.equal((await service.list()).length, 13);
   await assert.rejects(service.complete(2), e => e.getStatus() === 409);
   await assert.rejects(service.complete(1), e => e.getStatus() === 409);
@@ -36,6 +37,6 @@ const {RoadmapService} = require('../../dist/modules/roadmap/business/services/r
   console.log('PASS roadmap: concurrent seed, preserved edits, correction, locked levels, mandatory checks, concurrent completion, all 12 levels, no XP.');
  } finally {
   assert.equal(connection.name, namespace); assert.match(namespace,/^phd_quest_phase6_validation_[a-f0-9]{32}$/);
-  await connection.dropDatabase(); await connection.close();
+  if(verified)await connection.dropDatabase(); await connection.close();
  }
 })().catch(e => {console.error(e);process.exitCode=1});

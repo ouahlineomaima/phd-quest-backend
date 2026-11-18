@@ -1,3 +1,4 @@
+import {RoadmapStatus} from '../../persistence/enums/roadmap.enums';
 import { preparationCamp } from './preparation-camp';
 export const CHAPTERS = [
   'Find your direction', 'Explore the literature', 'Ask better questions', 'Shape the approach',
@@ -11,6 +12,6 @@ export function initialRoadmap() {
     checkpoints: [{ id: `chapter-${index + 1}-review`, title: 'Review and validate chapter outcomes',
       description: 'Provisional checkpoint: record the agreed outcomes and supporting references before validation.',
       mandatory: true, completed: false, validatedAt: null, firstValidatedAt: null, evidence: '' }],
-    status: 'locked', completedAt: null,
+    status: RoadmapStatus.Locked, completedAt: null,
   }))];
 }

@@ -27,7 +27,10 @@ let source,target;
  const plan=await plans.confirm(input);const sourceDb=await mongoose.createConnection(uris[0]).asPromise();
  // Owned historical fixture: the plan existed before its seven days of task activity.
  const past=new Date(now);past.setUTCDate(past.getUTCDate()-10);
- await sourceDb.collection('weekly_plans').updateOne({_id:new mongoose.Types.ObjectId(plan.id)},{$set:{createdAt:past}});await sourceDb.close();
+ await sourceDb.collection('weekly_plans').updateOne({_id:new mongoose.Types.ObjectId(plan.id)},{$set:{createdAt:past}});
+ // Command-time awards now occur during the historical task transitions, so the
+ // owned achievement definitions must also exist before that simulated history.
+ await sourceDb.collection('achievements').updateMany({},{$set:{createdAt:past}});await sourceDb.close();
  const realNow=clock.now.bind(clock);
  for(let i=0;i<10;i++){const at=new Date(now);at.setUTCDate(at.getUTCDate()-7+Math.min(i,6));clock.now=()=>new Date(at);await tasks.change(plan.id,'backup-'+i,'complete',5);}
  clock.now=realNow;await tasks.change(plan.id,'backup-0','reopen');

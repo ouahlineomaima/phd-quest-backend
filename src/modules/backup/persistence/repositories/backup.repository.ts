@@ -5,8 +5,8 @@ import { preparationCamp } from '../../../roadmap/business/services/preparation-
 import { applicationRevision } from '../../../../database/application-write';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
-import { ClientSession, Connection, Model, Types } from 'mongoose';
-import { BACKUP_SECTIONS, BackupFile, BackupSection } from '../interfaces/backup.interface';
+import { ClientSession, Connection, Model, Types, HydratedDocument } from 'mongoose';
+import { BACKUP_SECTIONS, BackupFile, LegacyBackupFile, BackupSection } from '../interfaces/backup.interface';
 import { WEEKLY_PLAN_MODEL } from '../../../weekly-plans/persistence/models/weekly-plan.model';
 import { XP_TRANSACTION_MODEL } from '../../../gamification/persistence/models/xp-transaction.model';
 import { DAILY_ACTIVITY_MODEL } from '../../../daily-activity/persistence/models/daily-activity.model';
@@ -23,7 +23,7 @@ function dates(value: unknown): unknown {
 @Injectable()
 export class BackupRepository {
   constructor(@InjectConnection() private readonly connection: Connection) {}
-  private model(section: BackupSection): Model<any> { return this.connection.model(MODELS[section]); }
+  private model(section: BackupSection): Model<Record<string,unknown>> { return this.connection.model<Record<string,unknown>>(MODELS[section]); }
   revision(session: ClientSession) { return applicationRevision(this.connection, session); }
   async data(session: ClientSession): Promise<BackupFile['data']> {
     const data = {} as BackupFile['data'];
@@ -36,8 +36,8 @@ export class BackupRepository {
     }
     return data;
   }
-  prepare(backup: BackupFile) {
-    const prepared = {} as Record<BackupSection, any[]>;
+  prepare(backup: LegacyBackupFile) {
+    const prepared = {} as Record<BackupSection, HydratedDocument<Record<string,unknown>>[]>;
     for (const section of BACKUP_SECTIONS) {
       prepared[section] = (backup.data[section] ?? []).map(row => {
         const { id, ...fields } = row;
@@ -51,11 +51,11 @@ export class BackupRepository {
       prepared.roadmapLevels.push(new (this.model('roadmapLevels'))({ ...preparationCamp(), createdAt: new Date(backup.exportedAt), updatedAt: new Date(backup.exportedAt) }));
     }
     if (prepared.roadmapLevels.some(record => record.levelNumber === 0 && record.status === 'current')) {
-      for (const record of prepared.roadmapLevels) if (record.levelNumber > 0 && record.status === 'current') record.status = 'locked';
+      for (const record of prepared.roadmapLevels) if (typeof record.levelNumber === 'number' && record.levelNumber > 0 && record.status === 'current') record.status = 'locked';
     }
     return prepared;
   }
-  async replace(prepared: Record<BackupSection, any[]>, session: ClientSession) {
+  async replace(prepared: Record<BackupSection, HydratedDocument<Record<string,unknown>>[]>, session: ClientSession) {
     for (const section of BACKUP_SECTIONS) {
       await this.model(section).deleteMany({}, { session });
       // Canonical documents already passed the trusted Mongoose schemas. Native insertion preserves every historical timestamp.

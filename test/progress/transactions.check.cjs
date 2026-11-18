@@ -23,7 +23,7 @@ const {weeklyProgress}=require('../../dist/modules/weekly-plans/business/service
   await plans.onModuleInit();await ledger.onModuleInit();await activityRepo.onModuleInit();
   let instant=new Date('2026-11-15T12:00:00Z');
   const clock={timezone:'Africa/Casablanca',now:()=>new Date(instant),dateAt:at=>localDateAt(at,'Africa/Casablanca')};
-  const daily=new DailyActivityService(activityRepo,clock),gam=new GamificationService(ledger,daily,clock,connection),service=new TaskProgressService(plans,gam,daily,clock,connection);
+  const daily=new DailyActivityService(activityRepo,clock),gam=new GamificationService(ledger,daily,clock,connection),service=new TaskProgressService(plans,gam,daily,clock,connection,{evaluateCurrent:async()=>[]});
   const input=require('../../docs/contracts/weekly-plan.v1.example.json');
   const fixture=structuredClone(input);fixture.title='Owned transaction test';fixture.tasks.push({...fixture.tasks[0],id:'zero',xpReward:0},{...fixture.tasks[0],id:'rollback'});
   const saved=await plans.insert(fixture),id=saved.id,task=fixture.tasks[0].id;

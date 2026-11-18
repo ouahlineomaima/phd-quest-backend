@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Schema } from 'mongoose';
 import { MeetingRecord, SupervisorRecord } from '../interfaces/meeting.interface';
-import { ACTION_PHASES, ACTION_STATUSES, MEETING_STATUSES, MEETING_TYPES, SUPERVISOR_ROLES, TASK_REFERENCE, RECORD_ID } from '../enums/meeting.enums';
+import { ACTION_PHASES, ACTION_STATUSES, MEETING_STATUSES, MEETING_TYPES, SUPERVISOR_ROLES, TASK_REFERENCE, RECORD_ID, MeetingStatus } from '../enums/meeting.enums';
 export const SUPERVISOR_MODEL = 'Supervisor';
 export const MEETING_MODEL = 'SupervisorMeeting';
 const options = { timestamps: true, autoIndex: false, autoCreate: false };
@@ -23,10 +23,10 @@ export const meetingSchema = new Schema<MeetingRecord>({
   editVersion: {type:String,default:randomUUID},
   title: {type: String, required: true, trim: true, maxlength: 160}, scheduledAt: {type: Date, required: true},
   plannedDurationMinutes: {type: Number, default: null, min: 1, max: 1440}, type: {type: String, required: true, enum: MEETING_TYPES},
-  location: {type: String, default: '', maxlength: 1000}, status: {type: String, default: 'scheduled', enum: MEETING_STATUSES},
+  location: {type: String, default: '', maxlength: 1000}, status: {type: String, default: MeetingStatus.Scheduled, enum: MEETING_STATUSES},
   supervisorIds: {type: [{type: String, match: RECORD_ID}], required: true}, notes: {type: notes, default: () => ({})},
   goalIds: {type: [{type: String, match: RECORD_ID}], default: []},
-  checkpointRefs: {type: [new Schema({levelNumber: {type: Number, required: true, min: 0, max: 12}, checkpointId: {type: String, required: true, maxlength: 100}}, {_id: false})], default: []},
+  checkpointRefs: {type: [new Schema({checkpointIdentity:{type:String},levelNumber: {type: Number, required: true, min: 0, max: 12}, checkpointId: {type: String, required: true, maxlength: 100}}, {_id: false})], default: []},
   documents: {type: [new Schema({label: {type: String, required: true, maxlength: 160}, url: {type: String, required: true, maxlength: 2048}}, {_id: false})], default: []},
   actions: {type: [action], default: []}, archivedAt: {type: Date, default: null},
 }, {...options, collection: 'supervisor_meetings'});

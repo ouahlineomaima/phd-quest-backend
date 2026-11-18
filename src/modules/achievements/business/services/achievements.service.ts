@@ -16,5 +16,8 @@ export class AchievementsService {
   if(codes.length)await this.repository.unlock(codes,this.clock.now(),session);
   return this.repository.list(session);
  }
- read() { return applicationWrite(this.connection, async session=>this.evaluate(session,await this.gamification.summary(session)),{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}}); }
+ list(session:ClientSession) { return this.repository.list(session); }
+ read() { return this.connection.transaction(session=>this.list(session),{readConcern:{level:'snapshot'},readPreference:'primary'}); }
+ async evaluateCurrent(session:ClientSession){return this.evaluate(session,await this.gamification.summary(session));}
+ refresh(){return applicationWrite(this.connection,async session=>this.evaluate(session,await this.gamification.summary(session)));}
 }

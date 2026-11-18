@@ -1,3 +1,4 @@
+import {GoalStatus} from '../enums/goal.enums';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Connection, Model } from 'mongoose';
@@ -21,7 +22,7 @@ export class GoalsRepository implements OnModuleInit {
    {$match:{sourceId:{$in:sources}}},
   ],{session}).toArray();
  }
- activeCount(session:ClientSession) { return this.model.countDocuments({status:'active'}).session(session); }
+ activeCount(session:ClientSession) { return this.model.countDocuments({status:GoalStatus.Active}).session(session); }
  find(id:string, session:ClientSession) { return this.model.findById(id).session(session).lean().exec(); }
  async insert(input:Record<string,unknown>,session:ClientSession) { const [record] = await this.model.create([input],{session}); return this.response(record.toObject()); }
  async update(id:string,fields:Record<string,unknown>,session:ClientSession) {

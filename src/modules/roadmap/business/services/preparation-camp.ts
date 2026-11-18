@@ -1,3 +1,4 @@
+import {RoadmapStatus} from '../../persistence/enums/roadmap.enums';
 // Preparation is independent of the twelve research chapters and has no academic year.
 export function preparationCamp() {
   return {
@@ -12,6 +13,6 @@ export function preparationCamp() {
     ],
     checkpoints: [{ id: 'research-environment-ready', title: 'Research environment ready and research direction confirmed.',
       mandatory: true, completed: false, validatedAt: null, firstValidatedAt: null, evidence: '' }],
-    status: 'current' as const, completedAt: null,
+    status: RoadmapStatus.Current as const, completedAt: null,
   };
 }

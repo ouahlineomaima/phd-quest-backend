@@ -15,7 +15,10 @@ const taskSchema = new Schema<StoredTask>({
   status: { type: String, enum: Object.values(TaskStatus), default: TaskStatus.Pending },
   completedAt: { type: Date, default: null },
   firstCompletedAt: { type: Date, default: null },
-}, { _id: false, strict: 'throw' });
+// Embedded tasks have stable application IDs, not independent Mongoose versions.
+// Disabling the unused version key also keeps transaction rollback from writing
+// an unknown __v field into a strict embedded schema.
+}, { _id: false, versionKey:false, strict: 'throw' });
 
 export const weeklyPlanSchema = new Schema<WeeklyPlanRecord>({
   schemaVersion: { type: Number, required: true, enum: [1] },

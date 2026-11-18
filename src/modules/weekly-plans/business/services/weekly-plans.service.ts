@@ -1,3 +1,7 @@
+import { InjectConnection } from '@nestjs/mongoose';
+import { Connection } from 'mongoose';
+import { applicationWrite } from '../../../../database/application-write';
+import { AchievementsService } from '../../../achievements/business/services/achievements.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { isObjectIdOrHexString, mongo } from 'mongoose';
 import { WeeklyPlansRepository } from '../../persistence/repositories/weekly-plans.repository';
@@ -7,7 +11,7 @@ import { calendarDates, validatePlan } from './plan-validation';
 
 @Injectable()
 export class WeeklyPlansService {
-  constructor(private readonly repository: WeeklyPlansRepository) {}
+  constructor(private readonly repository:WeeklyPlansRepository,@InjectConnection() private readonly connection:Connection,private readonly achievements:AchievementsService) {}
 
   list() { return this.repository.list(); }
   async detail(id: string) {
@@ -20,7 +24,7 @@ export class WeeklyPlansService {
     const plan = validatePlan(input);
     const conflict = () => new ConflictException({ code: 'WEEK_EXISTS', message: 'This week is already saved. Existing tasks and progress were preserved.', details: [{ field: 'weekId', message: 'Choose another week. Replacement and merging are not supported.' }] });
     if (await this.repository.exists(plan.weekId)) throw conflict();
-    try { return await this.repository.insert(plan); }
+    try { return await applicationWrite(this.connection,async session=>{const record=await this.repository.insert(plan,session);await this.achievements.evaluateCurrent(session);return record;}); }
     catch (error) {
       // The unique index remains authoritative if two confirmations pass the existence check together.
       if (error instanceof mongo.MongoServerError && error.code === 11000) throw conflict();

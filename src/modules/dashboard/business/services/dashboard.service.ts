@@ -1,4 +1,4 @@
-import { applicationWrite } from '../../../../database/application-write';
+import { GoalStatus } from '../../../goals/persistence/enums/goal.enums';
 import { Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
@@ -15,11 +15,11 @@ export class DashboardService {
  constructor(private readonly repository:DashboardRepository,private readonly gamification:GamificationService,private readonly roadmap:RoadmapService,private readonly goals:GoalsService,private readonly achievements:AchievementsService,private readonly clock:ApplicationClock,@InjectConnection() private readonly connection:Connection) {}
  read() {
   const at=this.clock.now(),today=this.clock.dateAt(at),week=sundayWeek(today);
-  return applicationWrite(this.connection, async session=>{
+  return this.connection.transaction(async session=>{
    const gamification=await this.gamification.summary(session,at);
-   const achievements=await this.achievements.evaluate(session,gamification);
+   const achievements=await this.achievements.list(session);
    const levels=await this.roadmap.list(session),current=levels.find(l=>l.status==='current')??null;
-   const activeGoals=await this.goals.list({status:'active'},session,5);
+   const activeGoals=await this.goals.list({status:GoalStatus.Active},session,5);
    const activeCount=await this.goals.activeCount(session);
    const plan=await this.repository.currentPlan(week.weekId,session);
    const earnedXp=plan?await this.gamification.earnedForWeek(week.weekId,session):0;
@@ -37,6 +37,6 @@ export class DashboardService {
     goals:{activeCount,items:activeGoals},
     achievements:{total:achievements.length,unlocked:unlocked.length,recent:unlocked.sort((a,b)=>b.unlockedAt!.getTime()-a.unlockedAt!.getTime()).slice(0,3)},recentActivity,
    };
-  },{readConcern:{level:'snapshot'},writeConcern:{w:'majority'},readPreference:'primary'});
+  },{readConcern:{level:'snapshot'},readPreference:'primary'});
  }
 }

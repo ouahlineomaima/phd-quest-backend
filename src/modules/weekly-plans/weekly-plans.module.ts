@@ -1,3 +1,4 @@
+import { AchievementsModule } from '../achievements/achievements.module';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { WEEKLY_PLAN_MODEL, weeklyPlanSchema } from './persistence/models/weekly-plan.model';
@@ -11,7 +12,7 @@ import { DailyActivityModule } from '../daily-activity/daily-activity.module';
 import { TimeModule } from '../../common/application-clock';
 
 @Module({
-  imports: [TimeModule, GamificationModule, DailyActivityModule, MongooseModule.forFeature([{ name: WEEKLY_PLAN_MODEL, schema: weeklyPlanSchema }])],
+  imports: [AchievementsModule,TimeModule, GamificationModule, DailyActivityModule, MongooseModule.forFeature([{ name: WEEKLY_PLAN_MODEL, schema: weeklyPlanSchema }])],
   controllers: [WeeklyPlansController, TaskProgressController],
   providers: [WeeklyPlansRepository, WeeklyPlansService, TaskProgressService],
 })

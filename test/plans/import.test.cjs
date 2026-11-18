@@ -60,7 +60,7 @@ test('confirmation revalidates without trusting preview and preserves existing w
   assert.equal(writes, 0);
 });
 test('a concurrent duplicate-index error becomes a safe explicit week conflict', async () => {
-  const service = new WeeklyPlansService({ exists: async () => false, insert: async () => { throw new mongo.MongoServerError({ code: 11000, message: 'private database detail' }); } });
+  const service = new WeeklyPlansService({ exists: async () => false, insert: async () => { throw new mongo.MongoServerError({ code: 11000, message: 'private database detail' }); } },{transaction:work=>work({}),collection:()=>({updateOne:async()=>{}})});
   await assert.rejects(service.confirm(copy()), error => {
     assert.equal(error.getStatus(), 409); assert.equal(error.getResponse().code, 'WEEK_EXISTS');
     assert.doesNotMatch(JSON.stringify(error.getResponse()), /private database detail/); return true;

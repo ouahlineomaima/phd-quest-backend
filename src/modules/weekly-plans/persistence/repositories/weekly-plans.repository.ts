@@ -17,11 +17,12 @@ export class WeeklyPlansRepository implements OnModuleInit {
     await this.model.collection.createIndex({ weekId: 1 }, { unique: true, name: 'weekly_plan_week_unique' });
   }
   async exists(weekId: string) { return !!await this.model.exists({ weekId }); }
-  async insert(input: WeeklyPlanInput): Promise<WeeklyPlanResponseDto> {
-    return applicationWrite(this.model.db, async session => {
+  async insert(input: WeeklyPlanInput,session?:ClientSession): Promise<WeeklyPlanResponseDto> {
+    const work=async (session:ClientSession) => {
       const [record] = await this.model.create([input], { session });
       return this.toResponse(record.toObject());
-    });
+    };
+    return session?work(session):applicationWrite(this.model.db,work);
   }
   async findById(id: string) {
     const record = await this.model.findById(id).lean().exec();

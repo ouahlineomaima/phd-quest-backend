@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const {randomUUID} = require('node:crypto');
 require('reflect-metadata');
-const pattern = /^phd_quest_(smoke|stage1)_[a-f0-9]{32}$/;
+const pattern = /^phd_quest_(smoke|stage1|stage2)_[a-f0-9]{32}$/;
 function target(uri, api) {
   if (api) throw new Error('External API_BASE_URL is forbidden: the isolated API must be created by this process.');
   if (!uri) throw new Error('Explicit disposable SMOKE_MONGODB_URI and --isolated are required; the running application is never a fallback.');

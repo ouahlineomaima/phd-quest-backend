@@ -1,3 +1,4 @@
+import { AchievementsService } from '../../../achievements/business/services/achievements.service';
 import { applicationWrite } from '../../../../database/application-write';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
@@ -14,7 +15,7 @@ import { weeklyProgress } from './weekly-progress';
 
 @Injectable()
 export class TaskProgressService {
-  constructor(private readonly plans: WeeklyPlansRepository, private readonly gamification: GamificationService, private readonly activity: DailyActivityService, private readonly clock: ApplicationClock, @InjectConnection() private readonly connection: Connection) {}
+  constructor(private readonly plans: WeeklyPlansRepository, private readonly gamification: GamificationService, private readonly activity: DailyActivityService, private readonly clock: ApplicationClock, @InjectConnection() private readonly connection: Connection,private readonly achievements:AchievementsService) {}
   private validateIds(planId: string, taskId?: string) {
     if (!isObjectIdOrHexString(planId) || (taskId !== undefined && !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(taskId))) throw new BadRequestException('Invalid plan or task identifier');
   }
@@ -58,6 +59,7 @@ export class TaskProgressService {
             if (!first) xpAwarded = await this.gamification.awardTask({ planId, weekId: plan.weekId, taskId, title: task.title, amount: task.xpReward, at }, session);
             await this.activity.record({ eventId: randomUUID(), sourceId: `${plan.weekId}:${taskId}`, planId, taskId, occurredAt: at }, session);
           }
+          await this.achievements.evaluateCurrent(session);
           return { changed: true, xpAwarded, ...await this.snapshot(plan, session, at) };
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' }, readPreference: 'primary', maxCommitTimeMS: 10000 });
       } catch (error) {
