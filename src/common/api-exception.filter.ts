@@ -1,4 +1,7 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from '@nestjs/common';
+import { correlate, diagnosticMethod, diagnosticRoute } from './request-context';
+import type { DiagnosticRequest, CorrelationResponse } from './request-context';
+import { safeErrorDiagnostic } from './safe-error-diagnostic';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import { Error as MongooseError, mongo } from 'mongoose';
 
 const httpCodes: Record<number, string> = {
@@ -14,11 +17,17 @@ const httpCodes: Record<number, string> = {
   503: 'SERVICE_UNAVAILABLE',
 };
 
+interface ErrorResponse extends CorrelationResponse {
+  status(code: number): ErrorResponse;
+  json(body: unknown): unknown;
+}
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
+  constructor(private readonly logger: Pick<Logger, 'error'> = new Logger('API')) {}
   catch(error: unknown, host: ArgumentsHost) {
-    const request = host.switchToHttp().getRequest<{ originalUrl?: string; url: string }>();
-    const response = host.switchToHttp().getResponse();
+    const request = host.switchToHttp().getRequest<DiagnosticRequest>();
+    const response = host.switchToHttp().getResponse<ErrorResponse>();
+    const context = correlate(request, response);
     let statusCode = 500;
     let code = 'INTERNAL_ERROR';
     let message = 'An unexpected error occurred';
@@ -76,13 +85,30 @@ export class ApiExceptionFilter implements ExceptionFilter {
         message = 'Malformed JSON request';
       }
     }
+    if (statusCode >= 500)
+      this.logger.error(
+        JSON.stringify({
+          requestId: context.requestId,
+          method: diagnosticMethod(request),
+          path: diagnosticRoute(request),
+          statusCode,
+          category:
+            code === 'DATABASE_UNAVAILABLE'
+              ? 'DatabaseUnavailable'
+              : error instanceof HttpException
+                ? 'InternalHttpError'
+                : 'UnexpectedError',
+          durationMs: Math.round(performance.now() - context.started),
+          diagnostic: safeErrorDiagnostic(error),
+        }),
+      );
     response.status(statusCode).json({
       statusCode,
       code,
       message,
       details,
       timestamp: new Date().toISOString(),
-      path: (request.originalUrl ?? request.url).split('?')[0],
+      path: (request.originalUrl ?? request.url ?? '/').split('?')[0],
     });
   }
 }

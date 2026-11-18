@@ -1,0 +1,25 @@
+{
+  "typescript": [
+    "src/common/{api-exception.filter,request-logging,request-context,safe-error-diagnostic,configure-api}.ts"
+  ],
+  "templates": [],
+  "javascript": [
+    "scripts/quality.mjs",
+    "test/stage3/*.test.cjs",
+    "test/unit/logging.test.cjs",
+    "test/stage3/browser.check.cjs",
+    "eslint.config.mjs"
+  ],
+  "format": [
+    "src/common/{api-exception.filter,request-logging,request-context,safe-error-diagnostic,configure-api}.ts",
+    "test/stage3/*.test.cjs",
+    "test/unit/logging.test.cjs",
+    "scripts/quality.mjs",
+    "eslint.config.mjs",
+    "quality-scope.json",
+    ".prettierrc.json",
+    "package.json",
+    "docs/STAGE3.md",
+    "test/stage3/browser.check.cjs"
+  ]
+}

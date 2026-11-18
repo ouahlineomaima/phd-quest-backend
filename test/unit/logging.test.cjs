@@ -8,7 +8,19 @@ test('request logging records completed responses without query, header or body 
   const response = new EventEmitter();
   response.statusCode = 413;
   let nextCalled = false;
-  requestLogging({ log: line => lines.push(line) })({ method: 'POST', url: '/api/example?token=secret', headers: { authorization: 'secret' }, body: { password: 'secret' } }, response, () => { nextCalled = true; });
+  requestLogging({ log: (line) => lines.push(line) })(
+    {
+      method: 'POST',
+      url: '/api/example?token=secret',
+      route: { path: '/api/example' },
+      headers: { authorization: 'secret' },
+      body: { password: 'secret' },
+    },
+    response,
+    () => {
+      nextCalled = true;
+    },
+  );
   assert.equal(nextCalled, true);
   assert.equal(lines.length, 0);
   response.emit('finish');

@@ -1,14 +1,15 @@
+import { json } from 'express';
 import { browserWriteBoundary } from './browser-write-boundary';
 import { MAX_BACKUP_BYTES } from '../modules/backup/persistence/interfaces/backup.interface';
-import { ConfigService } from '@nestjs/config';
+import type { ConfigService } from '@nestjs/config';
 import {
   BadRequestException,
   PayloadTooLargeException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
-import { IncomingMessage, ServerResponse } from 'node:http';
-import { NestExpressApplication } from '@nestjs/platform-express';
-import { AppEnvironment } from '../config/environment';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import type { AppEnvironment } from '../config/environment';
 import { ApiExceptionFilter } from './api-exception.filter';
 import { createValidationPipe } from './validation';
 import { requestLogging } from './request-logging';
@@ -20,7 +21,7 @@ export function configureApi(
   app.use(requestLogging());
   app.use(browserWriteBoundary(config.get('CORS_ORIGINS', { infer: true }).split(',')));
   // Only backup uploads receive the larger, bounded allowance; plan-import limits remain unchanged.
-  app.use('/api/backup', require('express').json({ limit: MAX_BACKUP_BYTES + 4096 }));
+  app.use('/api/backup', json({ limit: MAX_BACKUP_BYTES + 4096 }));
   app.useBodyParser('json', { limit: config.get('BODY_LIMIT_BYTES', { infer: true }) });
   // Normalize parser errors before Nest converts SyntaxError and discards its type marker.
   app.use(
@@ -56,6 +57,9 @@ export function configureApi(
   app.setGlobalPrefix('api');
   app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new ApiExceptionFilter());
-  app.enableCors({ origin: config.get('CORS_ORIGINS', { infer: true }).split(',') });
+  app.enableCors({
+    origin: config.get('CORS_ORIGINS', { infer: true }).split(','),
+    exposedHeaders: ['X-Request-ID'],
+  });
   app.enableShutdownHooks();
 }

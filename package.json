@@ -1,45 +1,55 @@
 {
-    "name":  "phd-quest-backend",
-    "version":  "0.0.0",
-    "private":  true,
-    "scripts":  {
-                    "build":  "nest build",
-                    "start":  "nest start",
-                    "start:dev":  "nest start --watch",
-                    "start:prod":  "node dist/main.js",
-                    "test":  "npm run build \u0026\u0026 node --test test/unit/*.test.cjs test/http/*.test.cjs test/plans/*.test.cjs test/progress/*.test.cjs",
-                    "test:integration":  "npm run build \u0026\u0026 node --test test/integration/*.integration.cjs",
-                    "test:plans":  "npm run build \u0026\u0026 node --test test/plans/*.test.cjs",
-                    "test:plans:smoke":  "node test/plans/api.smoke.cjs",
-                    "test:progress":  "npm run build \u0026\u0026 node --test test/progress/*.test.cjs",
-                    "test:progress:transactions":  "node test/progress/transactions.check.cjs",
-                    "test:meetings": "node --test test/meetings/*.test.cjs test/meetings/meetings.check.cjs",
-                    "test:meetings:browser": "node test/meetings/browser.check.cjs",
-                    "test:skills": "node --test test/skills/*.test.cjs",
-                    "test:skills:browser": "node test/skills/browser.check.cjs",
-                    "test:safety": "node --test test/safety/stage1.test.cjs test/safety/smoke-cleanup.test.cjs",
-                    "test:safety:browser": "node test/safety/browser.check.cjs",
-                    "test:stage2": "node --test test/safety/stage2.test.cjs test/safety/smoke-cleanup.test.cjs test/contracts/*.test.cjs",
-                    "test:stage2:browser": "node test/safety/stage2-browser.check.cjs"
-                },
-    "dependencies":  {
-                         "@nestjs/common":  "^11.1.0",
-                         "@nestjs/core":  "^11.1.0",
-                         "@nestjs/platform-express":  "^11.1.0",
-                         "@nestjs/config":  "^4.0.0",
-                         "@nestjs/mongoose":  "^11.0.0",
-                         "mongoose":  "^8.19.0",
-                         "class-validator":  "^0.14.2",
-                         "class-transformer":  "^0.5.1",
-                         "reflect-metadata":  "^0.2.2",
-                         "rxjs":  "^7.8.2"
-                     },
-    "devDependencies":  {
-                            "@nestjs/cli":  "^11.0.0",
-                            "@types/node":  "^24.0.0",
-                            "typescript":  "~5.9.3"
-                        },
-    "engines":  {
-                    "node":  "^24.15.0"
-                }
+  "name": "phd-quest-backend",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main.js",
+    "test": "npm run build && node --test test/unit/*.test.cjs test/http/*.test.cjs test/plans/*.test.cjs test/progress/*.test.cjs",
+    "test:integration": "npm run build && node --test test/integration/*.integration.cjs",
+    "test:plans": "npm run build && node --test test/plans/*.test.cjs",
+    "test:plans:smoke": "node test/plans/api.smoke.cjs",
+    "test:progress": "npm run build && node --test test/progress/*.test.cjs",
+    "test:progress:transactions": "node test/progress/transactions.check.cjs",
+    "test:meetings": "node --test test/meetings/*.test.cjs test/meetings/meetings.check.cjs",
+    "test:meetings:browser": "node test/meetings/browser.check.cjs",
+    "test:skills": "node --test test/skills/*.test.cjs",
+    "test:skills:browser": "node test/skills/browser.check.cjs",
+    "test:safety": "node --test test/safety/stage1.test.cjs test/safety/smoke-cleanup.test.cjs",
+    "test:safety:browser": "node test/safety/browser.check.cjs",
+    "test:stage2": "node --test test/safety/stage2.test.cjs test/safety/smoke-cleanup.test.cjs test/contracts/*.test.cjs",
+    "test:stage2:browser": "node test/safety/stage2-browser.check.cjs",
+    "lint": "node scripts/quality.mjs lint",
+    "format:check": "node scripts/quality.mjs format:check",
+    "format": "node scripts/quality.mjs format",
+    "test:stage3": "node --test test/stage3/*.test.cjs test/unit/logging.test.cjs",
+    "test:stage3:browser": "node test/stage3/browser.check.cjs"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.1.0",
+    "@nestjs/mongoose": "^11.0.0",
+    "@nestjs/platform-express": "^11.1.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "mongoose": "^8.19.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@nestjs/cli": "^11.0.0",
+    "@types/express": "5.0.6",
+    "@types/node": "^24.0.0",
+    "eslint": "10.15.0",
+    "prettier": "3.10.1",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "8.73.0"
+  },
+  "engines": {
+    "node": "^24.15.0"
+  }
 }
