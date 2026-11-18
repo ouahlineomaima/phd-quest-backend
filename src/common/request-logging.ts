@@ -6,10 +6,16 @@ export function requestLogging(logger: Pick<Logger, 'log'> = new Logger('HTTP'))
     const started = performance.now();
     // Capture before Express routing can alter the URL. Never log queries, headers or bodies.
     const path = (request.url ?? '/').split('?')[0];
-    response.once('finish', () => logger.log(JSON.stringify({
-      method: request.method, path, statusCode: response.statusCode,
-      durationMs: Math.round(performance.now() - started),
-    })));
+    response.once('finish', () =>
+      logger.log(
+        JSON.stringify({
+          method: request.method,
+          path,
+          statusCode: response.statusCode,
+          durationMs: Math.round(performance.now() - started),
+        }),
+      ),
+    );
     next();
   };
 }
