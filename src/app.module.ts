@@ -1,3 +1,4 @@
+import { ResearchSkillsModule } from './modules/research-skills/research-skills.module';
 import { FocusSessionsModule } from './modules/focus-sessions/focus-sessions.module';
 import { SupervisorMeetingsModule } from './modules/supervisor-meetings/supervisor-meetings.module';
 import { Module } from '@nestjs/common';
@@ -27,6 +28,7 @@ import { RoadmapModule } from './modules/roadmap/roadmap.module';
     BackupModule,
     FocusSessionsModule,
     SupervisorMeetingsModule,
+    ResearchSkillsModule,
   ],
 })
 export class AppModule {}

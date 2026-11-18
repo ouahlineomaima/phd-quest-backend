@@ -1,4 +1,5 @@
 import { FOCUS_MODEL } from '../../../focus-sessions/persistence/models/focus-session.model';
+import { SKILL_CATEGORY_MODEL, RESEARCH_SKILL_MODEL, SKILL_TREE_STATE_MODEL } from '../../../research-skills/persistence/models/research-skill.model';
 import { MEETING_MODEL, SUPERVISOR_MODEL } from '../../../supervisor-meetings/persistence/models/meeting.model';
 import { preparationCamp } from '../../../roadmap/business/services/preparation-camp';
 import { applicationRevision } from '../../../../database/application-write';
@@ -12,8 +13,8 @@ import { DAILY_ACTIVITY_MODEL } from '../../../daily-activity/persistence/models
 import { ROADMAP_MODEL } from '../../../roadmap/persistence/models/roadmap.model';
 import { GOAL_MODEL } from '../../../goals/persistence/models/goal.model';
 import { ACHIEVEMENT_MODEL } from '../../../achievements/persistence/models/achievement.model';
-const MODELS: Record<BackupSection, string> = { weeklyPlans: WEEKLY_PLAN_MODEL, xpTransactions: XP_TRANSACTION_MODEL, dailyActivity: DAILY_ACTIVITY_MODEL, roadmapLevels: ROADMAP_MODEL, goals: GOAL_MODEL, achievements: ACHIEVEMENT_MODEL, focusSessions: FOCUS_MODEL, supervisors: SUPERVISOR_MODEL, supervisorMeetings: MEETING_MODEL };
-const dateFields = new Set(['createdAt', 'updatedAt', 'completedAt', 'firstCompletedAt', 'validatedAt', 'firstValidatedAt', 'awardedAt', 'occurredAt', 'firstActivityAt', 'lastActivityAt', 'unlockedAt', 'scheduledAt', 'archivedAt']);
+const MODELS: Record<BackupSection, string> = { weeklyPlans: WEEKLY_PLAN_MODEL, xpTransactions: XP_TRANSACTION_MODEL, dailyActivity: DAILY_ACTIVITY_MODEL, roadmapLevels: ROADMAP_MODEL, goals: GOAL_MODEL, achievements: ACHIEVEMENT_MODEL, focusSessions: FOCUS_MODEL, supervisors: SUPERVISOR_MODEL, supervisorMeetings: MEETING_MODEL, skillCategories: SKILL_CATEGORY_MODEL, researchSkills: RESEARCH_SKILL_MODEL, skillTreeState: SKILL_TREE_STATE_MODEL };
+const dateFields = new Set(['createdAt', 'updatedAt', 'completedAt', 'firstCompletedAt', 'validatedAt', 'firstValidatedAt', 'awardedAt', 'occurredAt', 'firstActivityAt', 'lastActivityAt', 'unlockedAt', 'scheduledAt', 'archivedAt', 'changedAt', 'initializedAt']);
 function dates(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(dates);
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, dateFields.has(key) && typeof item === 'string' ? new Date(item) : dates(item)]));

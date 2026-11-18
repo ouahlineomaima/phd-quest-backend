@@ -1,4 +1,5 @@
 import { validateFocus } from '../../../focus-sessions/business/services/focus-validation';
+import { validateSkillsBackup } from '../../../research-skills/business/services/skills-backup-validation';
 import { validateMeetingBackup } from '../../../supervisor-meetings/business/services/meeting-backup-validation';
 import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
@@ -69,7 +70,7 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
   const settings = shape(file.settings, ['timezone', 'weeklyBaselineMinutes'], [], 'settings');
   if (settings.timezone !== timezone) invalid('settings.timezone', 'Backup timezone must match the configured application timezone before restoration.');
   oneOf(settings.weeklyBaselineMinutes, [360], 'settings.weeklyBaselineMinutes');
-  const optionalSections = ['focusSessions', 'supervisors', 'supervisorMeetings'];
+  const optionalSections = ['focusSessions', 'supervisors', 'supervisorMeetings', 'skillCategories', 'researchSkills', 'skillTreeState'];
   const requiredSections = BACKUP_SECTIONS.filter(section => !optionalSections.includes(section));
   const counts = shape(file.counts, requiredSections, optionalSections, 'counts');
   const data = shape(file.data, requiredSections, optionalSections, 'data');
@@ -227,5 +228,6 @@ export function validateBackup(input: unknown, timezone: string): BackupFile {
     if (row.appliedAt ? !row.taskRef || !tasks.has(row.taskRef) || row.appliedMinutes < 1 || row.appliedMinutes !== Math.floor(row.focusedSeconds/60) : row.appliedMinutes !== 0) invalid('focusSessions','Applied time must reference an existing task exactly once with the floored session minutes.');
   }
   validateMeetingBackup(data,end);
+  validateSkillsBackup(data,end);
   return file as BackupFile;
 }
