@@ -8,10 +8,14 @@ async function main() {
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
     const hello = await mongoose.connection.db.admin().command({ hello: 1 });
     await mongoose.connection.db.admin().ping();
-    if (hello.setName !== 'rs0' || !hello.isWritablePrimary) throw new Error('Expected writable rs0 primary');
+    if (hello.setName !== 'rs0' || !hello.isWritablePrimary)
+      throw new Error('Expected writable rs0 primary');
     console.log('PASS: Windows host MongoDB connection, ping and rs0 primary via Compass URI.');
   } finally {
     await mongoose.disconnect();
   }
 }
-main().catch(error => { console.error(error.message); process.exitCode = 1; });
+main().catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});

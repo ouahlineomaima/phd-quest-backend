@@ -1,1 +1,5 @@
-export enum RoadmapStatus { Current='current', Locked='locked', Completed='completed' }
+export enum RoadmapStatus {
+  Current = 'current',
+  Locked = 'locked',
+  Completed = 'completed',
+}

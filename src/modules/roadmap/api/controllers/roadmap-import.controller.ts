@@ -4,6 +4,10 @@ import { ConfirmRoadmapDto, PreviewRoadmapDto } from '../dtos/roadmap-import.dto
 @Controller('roadmap/import')
 export class RoadmapImportController {
   constructor(private readonly importer: RoadmapImportService) {}
-  @Post('preview') @HttpCode(200) preview(@Body() input: PreviewRoadmapDto) { return this.importer.preview(input.roadmap); }
-  @Post('confirm') confirm(@Body() input: ConfirmRoadmapDto) { return this.importer.confirm(input); }
+  @Post('preview') @HttpCode(200) preview(@Body() input: PreviewRoadmapDto) {
+    return this.importer.preview(input.roadmap);
+  }
+  @Post('confirm') confirm(@Body() input: ConfirmRoadmapDto) {
+    return this.importer.confirm(input);
+  }
 }

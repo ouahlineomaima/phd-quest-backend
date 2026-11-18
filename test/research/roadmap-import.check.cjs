@@ -1,35 +1,298 @@
 // Destructive checks use only the two random databases created by this script.
-const assert=require('node:assert/strict'),{randomUUID}=require('node:crypto'),mongoose=require('mongoose');require('reflect-metadata');
-const {NestFactory}=require('@nestjs/core'),{Module}=require('@nestjs/common'),{ConfigModule}=require('@nestjs/config');
-const {DatabaseModule}=require('../../dist/database/database.module'),{BackupModule}=require('../../dist/modules/backup/backup.module'),{validateEnvironment}=require('../../dist/config/environment');
-const createOwned=async uri=>{class OwnedApplication{};Module({imports:[ConfigModule.forRoot({isGlobal:true,ignoreEnvFile:true,ignoreEnvVars:true,load:[()=>validateEnvironment({...process.env,MONGODB_URI:uri})]}),DatabaseModule,BackupModule]})(OwnedApplication);return NestFactory.createApplicationContext(OwnedApplication,{logger:false});};
-const load=(path,name)=>require('../../dist/'+path)[name];
-const Importer=load('modules/roadmap/business/services/roadmap-import.service','RoadmapImportService'),Roadmap=load('modules/roadmap/business/services/roadmap.service','RoadmapService'),Repository=load('modules/roadmap/persistence/repositories/roadmap.repository','RoadmapRepository'),Backup=load('modules/backup/business/services/backup.service','BackupService'),Plans=load('modules/weekly-plans/business/services/weekly-plans.service','WeeklyPlansService'),Tasks=load('modules/weekly-plans/business/services/task-progress.service','TaskProgressService'),Goals=load('modules/goals/business/services/goals.service','GoalsService'),Achievements=load('modules/achievements/business/services/achievements.service','AchievementsService'),Clock=load('common/application-clock','ApplicationClock');
-const names=Array.from({length:2},()=> 'phd_quest_roadmap_validation_'+randomUUID().replaceAll('-',''));const uris=names.map(name=>{const uri=new URL(process.env.MONGODB_URI);uri.pathname='/'+name;return uri.toString();});let source,target;
-const confirm=(roadmap,p)=>({roadmap,digest:p.digest,revision:p.revision,confirmation:'REPLACE ROADMAP'});
-(async()=>{try{
- source=await createOwned(uris[0]);let importer=source.get(Importer),roadmap=source.get(Roadmap),repository=source.get(Repository),backup=source.get(Backup);
- const file=structuredClone(require('../../docs/contracts/roadmap.v1.example.json'));file.title='  Personalized test journey  ';file.levels[0].title='Custom research foundations';file.levels[0].checkpoints.push({id:'optional-reference',title:'Optional reference',required:false});
- const pristine=await backup.export(),preview=await importer.preview(file);assert.equal(preview.roadmap.title,'Personalized test journey');assert.equal(preview.totals.levels,13);assert.equal(preview.totals.checkpoints,14);assert.equal(preview.totals.requiredCheckpoints,13);assert.equal(preview.existing.completedLevels,0);assert.deepEqual((await backup.export()).data,pristine.data);assert.equal((await importer.preview(file)).revision,preview.revision);
- const reordered=JSON.parse(JSON.stringify(file,(key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).reverse()):value));assert.equal((await importer.preview(reordered)).digest,preview.digest);
- for(const mutate of [f=>f.schemaVersion=2,f=>f.durationYears=4,f=>f.roadmapId='Invalid_ID',f=>f.title=' ',f=>f.levels.pop(),f=>f.levels.reverse(),f=>f.levels[1].levelNumber=0,f=>f.levels[0].objectives=[],f=>f.levels[0].objectives=[' '],f=>f.levels[0].checkpoints=[],f=>f.levels[0].checkpoints.push(f.levels[0].checkpoints[0]),f=>f.levels[0].checkpoints.forEach(c=>c.required=false),f=>f.levels[0].checkpoints[0].required='true',f=>f.levels[0].checkpoints[0].id='Bad_ID',f=>f.levels[0].checkpoints[0].xpReward=100,f=>f.levels[0].status='completed',f=>f.levels[0]._id='a'.repeat(24),f=>f.completedAt='2026-11-15T00:00:00.000Z']){
-  const invalid=structuredClone(file);mutate(invalid);await assert.rejects(importer.preview(invalid),e=>e.getStatus()===400);
- }
- await assert.rejects(importer.preview({...file,title:'x'.repeat(512001)}),e=>e.getStatus()===413);assert.deepEqual((await backup.export()).data,pristine.data);
- await roadmap.checkpoint(0,'research-environment-ready',{completed:true});await roadmap.complete(0);
- const example=structuredClone(require('../../docs/contracts/weekly-plan.v1.example.json')),today=source.get(Clock).dateAt(new Date()),{sundayWeek}=require('../../dist/modules/dashboard/business/services/sunday-week'),week=sundayWeek(today);Object.assign(example,{weekId:week.weekId,startDate:week.startDate,endDate:week.endDate,title:'Owned preservation plan'});example.tasks=[{...example.tasks[0],id:'preserved-task',date:today,xpReward:100}];
- const plan=await source.get(Plans).confirm(example);await source.get(Tasks).change(plan.id,'preserved-task','complete',20);const goal=await source.get(Goals).create({title:'Preserved research goal',type:'research',relatedRoadmapLevel:2,relatedWeekId:week.weekId});await source.get(Goals).transition(goal.id,'complete');
- await roadmap.checkpoint(1,'chapter-1-review',{completed:true,evidence:'Historical evidence'});await roadmap.complete(1);await roadmap.checkpoint(2,'chapter-2-review',{completed:true});await roadmap.checkpoint(2,'chapter-2-review',{completed:false});await source.get(Achievements).read();const oldBackup=await backup.export();assert.ok(oldBackup.data.achievements.find(a=>a.code==='first_level').unlockedAt);
- let p=await importer.preview(file);assert.equal(p.existing.completedLevels,2);assert.equal(p.existing.validatedCheckpoints,2);assert.equal(p.existing.historicalCheckpointValidations,3);
- await assert.rejects(importer.confirm({...confirm(file,p),confirmation:'replace roadmap'}),e=>e.getStatus()===400);await assert.rejects(importer.confirm({...confirm(file,p),digest:'0'.repeat(64)}),e=>e.getStatus()===409);
- for(const change of [()=>roadmap.edit(1,'Edited historical chapter'),()=>roadmap.checkpoint(2,'chapter-2-review',{completed:true}),()=>roadmap.complete(2)]){p=await importer.preview(file);await change();const before=(await backup.export()).data;await assert.rejects(importer.confirm(confirm(file,p)),e=>e.getStatus()===409);assert.deepEqual((await backup.export()).data,before);}
- p=await importer.preview(file);const bp=await backup.preview(oldBackup);await backup.restore({backup:oldBackup,digest:bp.digest,revision:bp.revision,confirmation:'REPLACE ALL DATA'});await assert.rejects(importer.confirm(confirm(file,p)),e=>e.getStatus()===409);
- p=await importer.preview(file);const beforeFailure=(await backup.export()).data,replace=repository.replace.bind(repository);repository.replace=async(...args)=>{await replace(...args);throw new Error('Injected roadmap replacement failure');};await assert.rejects(importer.confirm(confirm(file,p)),/Injected roadmap/);repository.replace=replace;assert.deepEqual((await backup.export()).data,beforeFailure);assert.equal((await importer.preview(file)).revision,p.revision);
- const staleBackup=await backup.preview(oldBackup);p=await importer.preview(file);const raced=await Promise.allSettled([importer.confirm(confirm(file,p)),importer.confirm(confirm(file,p))]);assert.equal(raced.filter(r=>r.status==='fulfilled').length,1);assert.equal(raced.find(r=>r.status==='rejected').reason.getStatus(),409);await assert.rejects(importer.confirm(confirm(file,p)),e=>e.getStatus()===409);await assert.rejects(backup.restore({backup:oldBackup,digest:staleBackup.digest,revision:staleBackup.revision,confirmation:'REPLACE ALL DATA'}),e=>e.getStatus()===409);
- const imported=await roadmap.list();assert.equal(imported.length,13);assert.equal(imported[0].title,file.levels[0].title);assert.equal(imported[0].status,'current');assert.ok(imported.slice(1).every(l=>l.status==='locked'));assert.ok(imported.every(l=>l.completedAt===null&&l.checkpoints.every(c=>!c.completed&&c.validatedAt===null&&c.firstValidatedAt===null&&c.evidence==='')));assert.equal(imported[0].checkpoints[1].mandatory,false);
- const newBackup=await backup.export();for(const section of ['weeklyPlans','xpTransactions','dailyActivity','goals','achievements'])assert.deepEqual(newBackup.data[section],oldBackup.data[section],section+' changed');assert.equal(newBackup.schemaVersion,1);assert.equal(Object.hasOwn(newBackup.data.roadmapLevels[0],'roadmapId'),false);assert.equal((await source.get(Achievements).read()).filter(a=>a.unlockedAt).length,oldBackup.data.achievements.filter(a=>a.unlockedAt).length);
- target=await createOwned(uris[1]);const targetBackup=target.get(Backup);let targetPreview=await targetBackup.preview(newBackup);await targetBackup.restore({backup:newBackup,digest:targetPreview.digest,revision:targetPreview.revision,confirmation:'REPLACE ALL DATA'});assert.deepEqual((await targetBackup.export()).data,newBackup.data);await target.get(Roadmap).checkpoint(0,'research-environment-ready',{completed:true});await target.get(Roadmap).complete(0);await target.get(Roadmap).checkpoint(1,'chapter-1-review',{completed:true});await target.get(Roadmap).complete(1);assert.equal((await target.get(Roadmap).detail(2)).status,'current');await targetBackup.export();
- targetPreview=await targetBackup.preview(oldBackup);await targetBackup.restore({backup:oldBackup,digest:targetPreview.digest,revision:targetPreview.revision,confirmation:'REPLACE ALL DATA'});assert.deepEqual((await targetBackup.export()).data,oldBackup.data);
- await source.close();source=await createOwned(uris[0]);assert.deepEqual((await source.get(Backup).export()).data,newBackup.data);
- console.log('PASS roadmap import: normalized preview/digest, 19 invalid/oversized cases, confirmation, edit/checkpoint/completion/backup conflicts, concurrent/repeated import, injected rollback, unchanged non-roadmap data, historical achievements, old/new v1 backups, progression and restart persistence.');
-}finally{if(source)await source.close();if(target)await target.close();for(let i=0;i<names.length;i++){assert.match(names[i],/^phd_quest_roadmap_validation_[a-f0-9]{32}$/);const db=await mongoose.createConnection(uris[i]).asPromise();assert.equal(db.name,names[i]);await db.dropDatabase();await db.close();}}})().catch(e=>{console.error(e);process.exitCode=1});
+const assert = require('node:assert/strict'),
+  { randomUUID } = require('node:crypto'),
+  mongoose = require('mongoose');
+require('reflect-metadata');
+const { NestFactory } = require('@nestjs/core'),
+  { Module } = require('@nestjs/common'),
+  { ConfigModule } = require('@nestjs/config');
+const { DatabaseModule } = require('../../dist/database/database.module'),
+  { BackupModule } = require('../../dist/modules/backup/backup.module'),
+  { validateEnvironment } = require('../../dist/config/environment');
+const createOwned = async (uri) => {
+  class OwnedApplication {}
+  Module({
+    imports: [
+      ConfigModule.forRoot({
+        isGlobal: true,
+        ignoreEnvFile: true,
+        ignoreEnvVars: true,
+        load: [() => validateEnvironment({ ...process.env, MONGODB_URI: uri })],
+      }),
+      DatabaseModule,
+      BackupModule,
+    ],
+  })(OwnedApplication);
+  return NestFactory.createApplicationContext(OwnedApplication, { logger: false });
+};
+const load = (path, name) => require('../../dist/' + path)[name];
+const Importer = load(
+    'modules/roadmap/business/services/roadmap-import.service',
+    'RoadmapImportService',
+  ),
+  Roadmap = load('modules/roadmap/business/services/roadmap.service', 'RoadmapService'),
+  Repository = load(
+    'modules/roadmap/persistence/repositories/roadmap.repository',
+    'RoadmapRepository',
+  ),
+  Backup = load('modules/backup/business/services/backup.service', 'BackupService'),
+  Plans = load('modules/weekly-plans/business/services/weekly-plans.service', 'WeeklyPlansService'),
+  Tasks = load(
+    'modules/weekly-plans/business/services/task-progress.service',
+    'TaskProgressService',
+  ),
+  Goals = load('modules/goals/business/services/goals.service', 'GoalsService'),
+  Achievements = load(
+    'modules/achievements/business/services/achievements.service',
+    'AchievementsService',
+  ),
+  Clock = load('common/application-clock', 'ApplicationClock');
+const names = Array.from(
+  { length: 2 },
+  () => 'phd_quest_roadmap_validation_' + randomUUID().replaceAll('-', ''),
+);
+const uris = names.map((name) => {
+  const uri = new URL(process.env.MONGODB_URI);
+  uri.pathname = '/' + name;
+  return uri.toString();
+});
+let source, target;
+const confirm = (roadmap, p) => ({
+  roadmap,
+  digest: p.digest,
+  revision: p.revision,
+  confirmation: 'REPLACE ROADMAP',
+});
+(async () => {
+  try {
+    source = await createOwned(uris[0]);
+    let importer = source.get(Importer),
+      roadmap = source.get(Roadmap),
+      repository = source.get(Repository),
+      backup = source.get(Backup);
+    const file = structuredClone(require('../../docs/contracts/roadmap.v1.example.json'));
+    file.title = '  Personalized test journey  ';
+    file.levels[0].title = 'Custom research foundations';
+    file.levels[0].checkpoints.push({
+      id: 'optional-reference',
+      title: 'Optional reference',
+      required: false,
+    });
+    const pristine = await backup.export(),
+      preview = await importer.preview(file);
+    assert.equal(preview.roadmap.title, 'Personalized test journey');
+    assert.equal(preview.totals.levels, 13);
+    assert.equal(preview.totals.checkpoints, 14);
+    assert.equal(preview.totals.requiredCheckpoints, 13);
+    assert.equal(preview.existing.completedLevels, 0);
+    assert.deepEqual((await backup.export()).data, pristine.data);
+    assert.equal((await importer.preview(file)).revision, preview.revision);
+    const reordered = JSON.parse(
+      JSON.stringify(file, (key, value) =>
+        value && typeof value === 'object' && !Array.isArray(value)
+          ? Object.fromEntries(Object.entries(value).reverse())
+          : value,
+      ),
+    );
+    assert.equal((await importer.preview(reordered)).digest, preview.digest);
+    for (const mutate of [
+      (f) => (f.schemaVersion = 2),
+      (f) => (f.durationYears = 4),
+      (f) => (f.roadmapId = 'Invalid_ID'),
+      (f) => (f.title = ' '),
+      (f) => f.levels.pop(),
+      (f) => f.levels.reverse(),
+      (f) => (f.levels[1].levelNumber = 0),
+      (f) => (f.levels[0].objectives = []),
+      (f) => (f.levels[0].objectives = [' ']),
+      (f) => (f.levels[0].checkpoints = []),
+      (f) => f.levels[0].checkpoints.push(f.levels[0].checkpoints[0]),
+      (f) => f.levels[0].checkpoints.forEach((c) => (c.required = false)),
+      (f) => (f.levels[0].checkpoints[0].required = 'true'),
+      (f) => (f.levels[0].checkpoints[0].id = 'Bad_ID'),
+      (f) => (f.levels[0].checkpoints[0].xpReward = 100),
+      (f) => (f.levels[0].status = 'completed'),
+      (f) => (f.levels[0]._id = 'a'.repeat(24)),
+      (f) => (f.completedAt = '2026-11-15T00:00:00.000Z'),
+    ]) {
+      const invalid = structuredClone(file);
+      mutate(invalid);
+      await assert.rejects(importer.preview(invalid), (e) => e.getStatus() === 400);
+    }
+    await assert.rejects(
+      importer.preview({ ...file, title: 'x'.repeat(512001) }),
+      (e) => e.getStatus() === 413,
+    );
+    assert.deepEqual((await backup.export()).data, pristine.data);
+    await roadmap.checkpoint(0, 'research-environment-ready', { completed: true });
+    await roadmap.complete(0);
+    const example = structuredClone(require('../../docs/contracts/weekly-plan.v1.example.json')),
+      today = source.get(Clock).dateAt(new Date()),
+      { sundayWeek } = require('../../dist/modules/dashboard/business/services/sunday-week'),
+      week = sundayWeek(today);
+    Object.assign(example, {
+      weekId: week.weekId,
+      startDate: week.startDate,
+      endDate: week.endDate,
+      title: 'Owned preservation plan',
+    });
+    example.tasks = [{ ...example.tasks[0], id: 'preserved-task', date: today, xpReward: 100 }];
+    const plan = await source.get(Plans).confirm(example);
+    await source.get(Tasks).change(plan.id, 'preserved-task', 'complete', 20);
+    const goal = await source.get(Goals).create({
+      title: 'Preserved research goal',
+      type: 'research',
+      relatedRoadmapLevel: 2,
+      relatedWeekId: week.weekId,
+    });
+    await source.get(Goals).transition(goal.id, 'complete');
+    await roadmap.checkpoint(1, 'chapter-1-review', {
+      completed: true,
+      evidence: 'Historical evidence',
+    });
+    await roadmap.complete(1);
+    await roadmap.checkpoint(2, 'chapter-2-review', { completed: true });
+    await roadmap.checkpoint(2, 'chapter-2-review', { completed: false });
+    await source.get(Achievements).read();
+    const oldBackup = await backup.export();
+    assert.ok(oldBackup.data.achievements.find((a) => a.code === 'first_level').unlockedAt);
+    let p = await importer.preview(file);
+    assert.equal(p.existing.completedLevels, 2);
+    assert.equal(p.existing.validatedCheckpoints, 2);
+    assert.equal(p.existing.historicalCheckpointValidations, 3);
+    await assert.rejects(
+      importer.confirm({ ...confirm(file, p), confirmation: 'replace roadmap' }),
+      (e) => e.getStatus() === 400,
+    );
+    await assert.rejects(
+      importer.confirm({ ...confirm(file, p), digest: '0'.repeat(64) }),
+      (e) => e.getStatus() === 409,
+    );
+    for (const change of [
+      () => roadmap.edit(1, 'Edited historical chapter'),
+      () => roadmap.checkpoint(2, 'chapter-2-review', { completed: true }),
+      () => roadmap.complete(2),
+    ]) {
+      p = await importer.preview(file);
+      await change();
+      const before = (await backup.export()).data;
+      await assert.rejects(importer.confirm(confirm(file, p)), (e) => e.getStatus() === 409);
+      assert.deepEqual((await backup.export()).data, before);
+    }
+    p = await importer.preview(file);
+    const bp = await backup.preview(oldBackup);
+    await backup.restore({
+      backup: oldBackup,
+      digest: bp.digest,
+      revision: bp.revision,
+      confirmation: 'REPLACE ALL DATA',
+    });
+    await assert.rejects(importer.confirm(confirm(file, p)), (e) => e.getStatus() === 409);
+    p = await importer.preview(file);
+    const beforeFailure = (await backup.export()).data,
+      replace = repository.replace.bind(repository);
+    repository.replace = async (...args) => {
+      await replace(...args);
+      throw new Error('Injected roadmap replacement failure');
+    };
+    await assert.rejects(importer.confirm(confirm(file, p)), /Injected roadmap/);
+    repository.replace = replace;
+    assert.deepEqual((await backup.export()).data, beforeFailure);
+    assert.equal((await importer.preview(file)).revision, p.revision);
+    const staleBackup = await backup.preview(oldBackup);
+    p = await importer.preview(file);
+    const raced = await Promise.allSettled([
+      importer.confirm(confirm(file, p)),
+      importer.confirm(confirm(file, p)),
+    ]);
+    assert.equal(raced.filter((r) => r.status === 'fulfilled').length, 1);
+    assert.equal(raced.find((r) => r.status === 'rejected').reason.getStatus(), 409);
+    await assert.rejects(importer.confirm(confirm(file, p)), (e) => e.getStatus() === 409);
+    await assert.rejects(
+      backup.restore({
+        backup: oldBackup,
+        digest: staleBackup.digest,
+        revision: staleBackup.revision,
+        confirmation: 'REPLACE ALL DATA',
+      }),
+      (e) => e.getStatus() === 409,
+    );
+    const imported = await roadmap.list();
+    assert.equal(imported.length, 13);
+    assert.equal(imported[0].title, file.levels[0].title);
+    assert.equal(imported[0].status, 'current');
+    assert.ok(imported.slice(1).every((l) => l.status === 'locked'));
+    assert.ok(
+      imported.every(
+        (l) =>
+          l.completedAt === null &&
+          l.checkpoints.every(
+            (c) =>
+              !c.completed &&
+              c.validatedAt === null &&
+              c.firstValidatedAt === null &&
+              c.evidence === '',
+          ),
+      ),
+    );
+    assert.equal(imported[0].checkpoints[1].mandatory, false);
+    const newBackup = await backup.export();
+    for (const section of [
+      'weeklyPlans',
+      'xpTransactions',
+      'dailyActivity',
+      'goals',
+      'achievements',
+    ])
+      assert.deepEqual(newBackup.data[section], oldBackup.data[section], section + ' changed');
+    assert.equal(newBackup.schemaVersion, 1);
+    assert.equal(Object.hasOwn(newBackup.data.roadmapLevels[0], 'roadmapId'), false);
+    assert.equal(
+      (await source.get(Achievements).read()).filter((a) => a.unlockedAt).length,
+      oldBackup.data.achievements.filter((a) => a.unlockedAt).length,
+    );
+    target = await createOwned(uris[1]);
+    const targetBackup = target.get(Backup);
+    let targetPreview = await targetBackup.preview(newBackup);
+    await targetBackup.restore({
+      backup: newBackup,
+      digest: targetPreview.digest,
+      revision: targetPreview.revision,
+      confirmation: 'REPLACE ALL DATA',
+    });
+    assert.deepEqual((await targetBackup.export()).data, newBackup.data);
+    await target.get(Roadmap).checkpoint(0, 'research-environment-ready', { completed: true });
+    await target.get(Roadmap).complete(0);
+    await target.get(Roadmap).checkpoint(1, 'chapter-1-review', { completed: true });
+    await target.get(Roadmap).complete(1);
+    assert.equal((await target.get(Roadmap).detail(2)).status, 'current');
+    await targetBackup.export();
+    targetPreview = await targetBackup.preview(oldBackup);
+    await targetBackup.restore({
+      backup: oldBackup,
+      digest: targetPreview.digest,
+      revision: targetPreview.revision,
+      confirmation: 'REPLACE ALL DATA',
+    });
+    assert.deepEqual((await targetBackup.export()).data, oldBackup.data);
+    await source.close();
+    source = await createOwned(uris[0]);
+    assert.deepEqual((await source.get(Backup).export()).data, newBackup.data);
+    console.log(
+      'PASS roadmap import: normalized preview/digest, 19 invalid/oversized cases, confirmation, edit/checkpoint/completion/backup conflicts, concurrent/repeated import, injected rollback, unchanged non-roadmap data, historical achievements, old/new v1 backups, progression and restart persistence.',
+    );
+  } finally {
+    if (source) await source.close();
+    if (target) await target.close();
+    for (let i = 0; i < names.length; i++) {
+      assert.match(names[i], /^phd_quest_roadmap_validation_[a-f0-9]{32}$/);
+      const db = await mongoose.createConnection(uris[i]).asPromise();
+      assert.equal(db.name, names[i]);
+      await db.dropDatabase();
+      await db.close();
+    }
+  }
+})().catch((e) => {
+  console.error(e);
+  process.exitCode = 1;
+});

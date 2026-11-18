@@ -7,5 +7,9 @@ import { AchievementsModule } from '../achievements/achievements.module';
 import { DashboardRepository } from './persistence/repositories/dashboard.repository';
 import { DashboardService } from './business/services/dashboard.service';
 import { DashboardController } from './api/controllers/dashboard.controller';
-@Module({imports:[TimeModule,GamificationModule,RoadmapModule,GoalsModule,AchievementsModule],providers:[DashboardRepository,DashboardService],controllers:[DashboardController]})
+@Module({
+  imports: [TimeModule, GamificationModule, RoadmapModule, GoalsModule, AchievementsModule],
+  providers: [DashboardRepository, DashboardService],
+  controllers: [DashboardController],
+})
 export class DashboardModule {}

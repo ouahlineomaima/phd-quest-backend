@@ -14,23 +14,23 @@ Backend foundation only. No business endpoints, models, collections or seed data
 
 ## Executed results
 
-| Check | Result |
-| --- | --- |
-| Backend production build | Passed via npm test and integration-test builds |
-| Deterministic unit and real HTTP tests | 29 passed, 0 failed |
-| Explicit live rs0 integration test | 1 passed, 0 failed |
-| Lint | Not configured; no lint check claimed |
-| Compose config --quiet | Passed |
-| Compose image builds and service startup | Passed |
-| All three Docker health checks | Healthy |
-| Frontend HTTP | HTTP 200 |
-| Direct /api/health and database ping | Passed; status ok, database up, timestamp present |
-| Frontend /api proxy | Passed with timestamped health response |
-| Replica set | rs0, writable primary |
-| Persistence across ordinary Compose restart | Passed; unique marker confirmed and deleted |
-| Windows Compass URI protocol check | Passed; connection, ping and writable rs0 primary |
-| Existing MongoDB volume | Same phd-quest_mongo_data, created 2026-11-14T22:45:53Z |
-| Git workflow | Local semantic commits; no authentication retries or pushes |
+| Check                                       | Result                                                      |
+| ------------------------------------------- | ----------------------------------------------------------- |
+| Backend production build                    | Passed via npm test and integration-test builds             |
+| Deterministic unit and real HTTP tests      | 29 passed, 0 failed                                         |
+| Explicit live rs0 integration test          | 1 passed, 0 failed                                          |
+| Lint                                        | Not configured; no lint check claimed                       |
+| Compose config --quiet                      | Passed                                                      |
+| Compose image builds and service startup    | Passed                                                      |
+| All three Docker health checks              | Healthy                                                     |
+| Frontend HTTP                               | HTTP 200                                                    |
+| Direct /api/health and database ping        | Passed; status ok, database up, timestamp present           |
+| Frontend /api proxy                         | Passed with timestamped health response                     |
+| Replica set                                 | rs0, writable primary                                       |
+| Persistence across ordinary Compose restart | Passed; unique marker confirmed and deleted                 |
+| Windows Compass URI protocol check          | Passed; connection, ping and writable rs0 primary           |
+| Existing MongoDB volume                     | Same phd-quest_mongo_data, created 2026-11-14T22:45:53Z     |
+| Git workflow                                | Local semantic commits; no authentication retries or pushes |
 
 The deterministic suite covers configuration bounds, normalization and secret-safe startup errors; DTO transformation, nested validation and unexpected fields; HTTP CORS, 404/500 errors, malformed JSON, body size, form parameter limits and unsupported encoding; safe database error mappings; health success/disconnected/ping-failure behavior; and request log redaction. Test-only probe endpoints are never registered in AppModule.
 

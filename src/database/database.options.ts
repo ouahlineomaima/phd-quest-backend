@@ -3,7 +3,9 @@ import { MongooseModuleOptions } from '@nestjs/mongoose';
 import { Error as MongooseError } from 'mongoose';
 import { AppEnvironment } from '../config/environment';
 
-export function databaseOptions(config: ConfigService<AppEnvironment, true>): MongooseModuleOptions {
+export function databaseOptions(
+  config: ConfigService<AppEnvironment, true>,
+): MongooseModuleOptions {
   const timeout = config.get('MONGO_CONNECT_TIMEOUT_MS', { infer: true });
   return {
     uri: config.get('MONGODB_URI', { infer: true }),
@@ -18,6 +20,9 @@ export function databaseOptions(config: ConfigService<AppEnvironment, true>): Mo
     bufferCommands: false,
     autoCreate: false,
     autoIndex: config.get('NODE_ENV', { infer: true }) !== 'production',
-    connectionErrorFactory: () => new MongooseError('MongoDB connection failed after configured attempts. Check database availability, rs0 readiness and MONGODB_URI.'),
+    connectionErrorFactory: () =>
+      new MongooseError(
+        'MongoDB connection failed after configured attempts. Check database availability, rs0 readiness and MONGODB_URI.',
+      ),
   };
 }

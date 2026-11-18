@@ -1,1 +1,3 @@
-export enum XpSource { TaskCompletion = 'task_completion' }
+export enum XpSource {
+  TaskCompletion = 'task_completion',
+}

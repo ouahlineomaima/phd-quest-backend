@@ -11,13 +11,20 @@ async function bootstrap() {
   const { AppModule } = await import('./app.module');
   const { NestFactory } = await import('@nestjs/core');
   const { configureApi } = await import('./common/configure-api');
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false, abortOnError: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+    abortOnError: false,
+  });
   const config = app.get(ConfigService<AppEnvironment, true>);
   configureApi(app, config);
   await app.listen(config.get('PORT', { infer: true }), '0.0.0.0');
 }
 void bootstrap().catch((error: unknown) => {
-  if (error instanceof Error && error.message.startsWith('Invalid environment configuration:')) Logger.error(error.message, 'Bootstrap');
-  Logger.error('Backend startup failed. Check configuration validation and database availability.', 'Bootstrap');
+  if (error instanceof Error && error.message.startsWith('Invalid environment configuration:'))
+    Logger.error(error.message, 'Bootstrap');
+  Logger.error(
+    'Backend startup failed. Check configuration validation and database availability.',
+    'Bootstrap',
+  );
   process.exit(1);
 });

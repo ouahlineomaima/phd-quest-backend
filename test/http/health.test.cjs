@@ -9,12 +9,26 @@ const { HealthController } = require('../../dist/modules/health/api/controllers/
 const { configureApi } = require('../../dist/common/configure-api');
 const { validateEnvironment } = require('../../dist/config/environment');
 
-test('health endpoint reports success and database failure without external services', async t => {
+test('health endpoint reports success and database failure without external services', async (t) => {
   const config = new ConfigService(validateEnvironment({ MONGODB_URI: 'mongodb://unused/test' }));
   let failing = false;
-  const connection = { readyState: 1, db: { admin: () => ({ command: async () => { if (failing) throw new Error('secret'); } }) } };
+  const connection = {
+    readyState: 1,
+    db: {
+      admin: () => ({
+        command: async () => {
+          if (failing) throw new Error('secret');
+        },
+      }),
+    },
+  };
   class TestModule {}
-  Module({ controllers: [HealthController], providers: [{ provide: HealthService, useFactory: () => new HealthService(connection, config) }] })(TestModule);
+  Module({
+    controllers: [HealthController],
+    providers: [
+      { provide: HealthService, useFactory: () => new HealthService(connection, config) },
+    ],
+  })(TestModule);
   const app = await NestFactory.create(TestModule, { bodyParser: false, logger: false });
   t.after(() => app.close());
   configureApi(app, config);

@@ -12,35 +12,35 @@ The canonical [contract](../../docs/contracts/weekly-plan.v1.schema.json), [impo
 
 ## Checks executed
 
-| Check | Result |
-| --- | --- |
-| Backend production builds | Passed |
-| Eight focused safety tests | Passed, 0 failed |
-| Frontend production builds | Passed; final initial JS/CSS 259.69 kB |
-| Final Compose startup and health | All three services healthy |
-| Frontend / direct API / proxied health / plan list | HTTP 200; database up |
-| Valid API preview | 200, normalized plan, 7 days, correct totals |
-| Preview database side effects | No record created |
-| Invalid JSON / unsupported version / missing fields | Rejected |
-| Invalid dates / duplicate task IDs / invalid duration or XP | Rejected with field paths |
-| Imported progress / unknown fields / numeric-string coercion | Rejected |
-| Import byte-size cap | Focused rejection test passed |
-| Valid confirmation | 201 with pending/0/null task progress |
-| Concurrent confirmations | Exactly one 201 and one 409; one record |
-| Existing-week preview | canImport=false and explicit conflict |
-| Existing-week confirmation | 409 WEEK_EXISTS; no replacement |
-| Existing progress preservation | Completed status, actual minutes and timestamp retained on own test fixture |
-| Unique weekId index | Present and unique in MongoDB |
-| List/detail | Newest-first summaries, no tasks in list, full detail round-trip |
-| Unknown/malformed detail IDs | 404 / 400 |
-| MongoDB persistence | Direct DB readback and frontend reload confirmed saved records |
-| Browser import and daily browsing | Passed, including empty day and blocked duplicates |
-| Concurrent change after browser preview | 409 becomes blocked preview, list refreshes on close |
-| Dialog keyboard/focus and pending guard | Passed |
-| Backend unavailable UI | Friendly retry state verified using an intercepted 503 |
-| Responsive saved view / dialog | 375px overflow checks passed after grid fix |
-| Browser errors | No unexpected JavaScript/runtime/console errors |
-| Final temporary-record cleanup check | Zero phase-created API/browser smoke records remained |
+| Check                                                        | Result                                                                      |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Backend production builds                                    | Passed                                                                      |
+| Eight focused safety tests                                   | Passed, 0 failed                                                            |
+| Frontend production builds                                   | Passed; final initial JS/CSS 259.69 kB                                      |
+| Final Compose startup and health                             | All three services healthy                                                  |
+| Frontend / direct API / proxied health / plan list           | HTTP 200; database up                                                       |
+| Valid API preview                                            | 200, normalized plan, 7 days, correct totals                                |
+| Preview database side effects                                | No record created                                                           |
+| Invalid JSON / unsupported version / missing fields          | Rejected                                                                    |
+| Invalid dates / duplicate task IDs / invalid duration or XP  | Rejected with field paths                                                   |
+| Imported progress / unknown fields / numeric-string coercion | Rejected                                                                    |
+| Import byte-size cap                                         | Focused rejection test passed                                               |
+| Valid confirmation                                           | 201 with pending/0/null task progress                                       |
+| Concurrent confirmations                                     | Exactly one 201 and one 409; one record                                     |
+| Existing-week preview                                        | canImport=false and explicit conflict                                       |
+| Existing-week confirmation                                   | 409 WEEK_EXISTS; no replacement                                             |
+| Existing progress preservation                               | Completed status, actual minutes and timestamp retained on own test fixture |
+| Unique weekId index                                          | Present and unique in MongoDB                                               |
+| List/detail                                                  | Newest-first summaries, no tasks in list, full detail round-trip            |
+| Unknown/malformed detail IDs                                 | 404 / 400                                                                   |
+| MongoDB persistence                                          | Direct DB readback and frontend reload confirmed saved records              |
+| Browser import and daily browsing                            | Passed, including empty day and blocked duplicates                          |
+| Concurrent change after browser preview                      | 409 becomes blocked preview, list refreshes on close                        |
+| Dialog keyboard/focus and pending guard                      | Passed                                                                      |
+| Backend unavailable UI                                       | Friendly retry state verified using an intercepted 503                      |
+| Responsive saved view / dialog                               | 375px overflow checks passed after grid fix                                 |
+| Browser errors                                               | No unexpected JavaScript/runtime/console errors                             |
+| Final temporary-record cleanup check                         | Zero phase-created API/browser smoke records remained                       |
 
 The repeatable `test/plans/api.smoke.cjs` checks real HTTP and MongoDB using a free UUID-marked 2099 week. It modifies completion fields only on its own temporary fixture to prove duplicate protection, then removes that record. The browser smoke uses separate UUID-marked 2099 records and removes only those records. No user's real research week was used, and the canonical 2026 example was not seeded into MongoDB.
 

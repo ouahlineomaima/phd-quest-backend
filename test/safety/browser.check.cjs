@@ -1,53 +1,470 @@
 ﻿// One real-browser Stage 1 workflow. Only an owned UUID database and ephemeral proxy are used.
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http'),{randomUUID}=require('node:crypto');
-const {isolated}=require('./isolated.cjs'),{chromium}=require(process.env.PLAYWRIGHT_CORE_PATH);
-const frontend=path.resolve(__dirname,'../../../phd-quest-frontend'),assets=path.join(frontend,'dist/phd-quest/browser'),artifacts=path.join(frontend,'.artifacts/stage1');fs.mkdirSync(artifacts,{recursive:true});
-let own,server,browser,attacker;const results=[];const pass=label=>{results.push(label);console.log('PASS',label);};
-(async()=>{try{
- let api;
- const proxyConfig=JSON.parse(fs.readFileSync(path.join(frontend,'proxy.conf.json'),'utf8'));assert.equal(proxyConfig['/api'].changeOrigin,true);
- server=http.createServer((req,res)=>{
-  if(req.url.startsWith('/api')){const target=new URL(req.url,api),proxy=http.request(target,{method:req.method,headers:{...req.headers,host:target.host}},r=>{res.writeHead(r.statusCode,r.headers);r.pipe(res);});proxy.on('error',()=>res.writeHead(502).end());req.pipe(proxy);return;}
-  const file=path.join(assets,decodeURIComponent(req.url.split('?')[0]));const selected=fs.existsSync(file)&&fs.statSync(file).isFile()?file:path.join(assets,'index.html');res.setHeader('content-type',({'.js':'text/javascript','.css':'text/css','.html':'text/html','.svg':'image/svg+xml'})[path.extname(selected)]||'application/octet-stream');fs.createReadStream(selected).pipe(res);
- });await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
- const uri=new URL(process.env.MONGODB_URI);uri.pathname='/phd_quest_stage1_'+randomUUID().replaceAll('-','');own=await isolated(uri.toString(),{CORS_ORIGINS:origin});api=new URL(own.base).origin;
- async function call(endpoint,method='GET',body,version,status=200){const response=await fetch(own.base+endpoint,{method,headers:{'content-type':'application/json',...(version?{'if-match':JSON.stringify(version)}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});const data=await response.json();assert.equal(response.status,status,JSON.stringify(data));return data;}
- const category=await call('/research-skills/categories','POST',{name:'Safety research'},undefined,201),skill=await call('/research-skills','POST',{name:'Concurrency skill',categoryId:category.id},undefined,201),profile=await call('/supervisors','POST',{name:'Safety supervisor'},undefined,201),meeting=await call('/supervisor-meetings','POST',{title:'Concurrency meeting',scheduledAt:'2026-12-01T10:00:00Z',supervisorIds:[profile.id]},undefined,201);
- browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});const context=await browser.newContext({viewport:{width:1440,height:1000}}),a=await context.newPage(),b=await context.newPage(),errors=[];for(const page of[a,b]){page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(15000);}
- const dialog=page=>page.getByRole('dialog',{includeHidden:false});const panel=page=>dialog(page).getByRole('alert',{name:'Unsaved conflicting draft'});
- const settle=async page=>{await page.waitForLoadState('networkidle');await page.locator('pq-loading').waitFor({state:'hidden'});};
- async function openSkill(page){await page.goto(origin+'/skills');await page.locator('.node-select').filter({hasText:'Concurrency skill'}).click();await page.getByRole('button',{name:'Edit skill',exact:true}).click();}
- if(!process.argv.includes('--boundary-only')&&!process.argv.includes('--layout-only')&&!process.argv.includes('--stage2-only')){
- await openSkill(a);await openSkill(b);await dialog(b).getByLabel('Skill description',{exact:true}).fill('Client B unsaved skill draft');await dialog(a).getByLabel('Skill description',{exact:true}).fill('Client A saved skill');await dialog(a).getByRole('button',{name:'Save skill',exact:true}).click();await dialog(a).waitFor({state:'hidden'});
- await dialog(b).getByRole('button',{name:'Save skill',exact:true}).click();await panel(b).waitFor();assert.equal(await dialog(b).getByLabel('Skill description',{exact:true}).inputValue(),'Client B unsaved skill draft');assert.equal((await call('/research-skills/'+skill.id)).description,'Client A saved skill');pass('Two real skill editors: stale save conflicts and keeps the draft');
- await panel(b).getByRole('button',{name:'Inspect latest record',exact:true}).click();await panel(b).locator('pre').filter({hasText:'Client A saved skill'}).waitFor();assert.equal(await dialog(b).getByLabel('Skill description',{exact:true}).inputValue(),'Client B unsaved skill draft');await panel(b).getByRole('button',{name:'Discard draft and reload',exact:true}).click();await dialog(b).waitFor({state:'hidden'});await settle(b);await b.getByRole('button',{name:'Edit skill',exact:true}).click();assert.equal(await dialog(b).getByLabel('Skill description',{exact:true}).inputValue(),'Client A saved skill');await dialog(b).getByLabel('Skill description',{exact:true}).fill('Client B deliberate fresh save');await dialog(b).getByRole('button',{name:'Save skill',exact:true}).click();await dialog(b).waitFor({state:'hidden'});pass('Inspect preserves draft; explicit discard/reload allows a deliberate fresh skill save');
- for(const page of[a,b]){await page.goto(origin+'/supervisor-meetings/'+meeting.id);await page.getByRole('button',{name:'Edit / reschedule',exact:true}).click();}
- await dialog(b).getByLabel('Agenda (optional)',{exact:true}).fill('Client B unsaved agenda');await dialog(a).getByLabel('Agenda (optional)',{exact:true}).fill('Client A agenda');await dialog(a).getByRole('button',{name:'Save meeting',exact:true}).click();await dialog(a).waitFor({state:'hidden'});await dialog(b).getByRole('button',{name:'Save meeting',exact:true}).click();await panel(b).waitFor();assert.equal(await dialog(b).getByLabel('Agenda (optional)',{exact:true}).inputValue(),'Client B unsaved agenda');assert.equal((await call('/supervisor-meetings/'+meeting.id)).notes.agenda,'Client A agenda');await panel(b).getByRole('button',{name:'Inspect latest record',exact:true}).click();await panel(b).locator('pre').filter({hasText:'Client A agenda'}).waitFor();await panel(b).getByRole('button',{name:'Discard draft and reload',exact:true}).click();await dialog(b).waitFor({state:'hidden'});pass('Two meeting editors retain conflicting notes and inspect the current record');
- for(const page of[a,b]){await page.goto(origin+'/supervisor-meetings');await page.getByRole('button',{name:'Supervisors',exact:true}).click();await page.getByRole('button',{name:'Edit supervisor',exact:true}).click();}
- await dialog(b).getByLabel('Supervisor notes',{exact:true}).fill('Client B unsaved profile');await dialog(a).getByLabel('Supervisor notes',{exact:true}).fill('Client A profile');await dialog(a).getByRole('button',{name:'Save supervisor',exact:true}).click();await dialog(a).waitFor({state:'hidden'});await dialog(b).getByRole('button',{name:'Save supervisor',exact:true}).click();await panel(b).waitFor();assert.equal(await dialog(b).getByLabel('Supervisor notes',{exact:true}).inputValue(),'Client B unsaved profile');await panel(b).getByRole('button',{name:'Discard draft and reload',exact:true}).click();await dialog(b).waitFor({state:'hidden'});pass('Supervisor profile conflict preserves the unsaved contact draft');
- // Trusted browser writes have gone through the same changeOrigin proxy shape as Angular.
- pass('Trusted browser JSON writes and If-Match pass through the development proxy configuration');
- }
- if(!process.argv.includes('--layout-only')&&!process.argv.includes('--stage2-only')){
- // A real untrusted browser form targets only the disposable API, never localhost:3000.
- const count=await own.connection.collection('supervisors').countDocuments(),rev=(await own.connection.collection('_application_control').findOne({_id:'writes'})).revision;
- attacker=http.createServer((_req,res)=>{res.setHeader('content-type','text/html');res.end(`<form method="post" action="${api}/api/supervisors" target="sink"><input name="name" value="External browser form"></form><iframe name="sink"></iframe>`);});await new Promise(r=>attacker.listen(0,'127.0.0.1',r));const evil=await context.newPage(),network=[];evil.on('requestfailed',r=>network.push({url:r.url(),error:r.failure()?.errorText}));evil.on('console',m=>{if(m.type()==='error')network.push({console:m.text()});});await evil.goto('http://127.0.0.1:'+attacker.address().port);const denied=evil.waitForResponse(r=>r.url()===api+'/api/supervisors',{timeout:10000}).then(r=>r.status()).catch(()=>null);await evil.locator('form').evaluate(form=>form.submit());const status=await denied;fs.writeFileSync(path.join(artifacts,'boundary-network.json'),JSON.stringify({status,network},null,2));assert.equal(status,403,JSON.stringify(network));assert.equal(await own.connection.collection('supervisors').countDocuments(),count);assert.equal((await own.connection.collection('_application_control').findOne({_id:'writes'})).revision,rev);await evil.close();pass('Actual cross-origin browser form receives 403 without data or revision changes');
- }
- if(!process.argv.includes('--stage2-only')){
- for(const route of['dashboard','help']){await b.goto(origin+'/'+route);await settle(b);assert.ok(await b.locator('h1').count());}pass('Dashboard and Help remain accessible');
- await b.goto(origin+'/skills');await settle(b);await b.screenshot({path:path.join(artifacts,'desktop.png'),fullPage:true});await b.setViewportSize({width:390,height:844});await b.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth+1,{},{timeout:5000});await b.screenshot({path:path.join(artifacts,'mobile.png'),fullPage:true});pass('Desktop/mobile smoke check without horizontal overflow');
- }
- if(process.env.STAGE2_BROWSER==='1'){
-  await b.setViewportSize({width:1440,height:1000});await b.goto(origin+'/skills');await b.locator('.node-select').filter({hasText:'Concurrency skill'}).click();await b.getByRole('button',{name:'Link activity',exact:true}).click();await dialog(b).getByLabel(/^Activity source type/).selectOption('roadmap_checkpoint');await dialog(b).getByLabel(/^Roadmap checkpoint/).selectOption('0:research-environment-ready');await dialog(b).getByLabel(/^Optional target proficiency/).selectOption('2');await dialog(b).getByRole('button',{name:'Save activity links',exact:true}).click();await dialog(b).waitFor({state:'hidden'});await settle(b);
-  let linked=await call('/research-skills/'+skill.id);assert.ok(linked.associations[0].checkpointIdentity);assert.equal(linked.proficiency,0);pass('New checkpoint link captures immutable identity through the Skill editor');
-  const checkpoint=(await call('/roadmap'))[0].checkpoints[0];await b.goto(origin+'/supervisor-meetings/'+meeting.id);await b.getByRole('button',{name:'Edit / reschedule',exact:true}).click();const checkpoints=dialog(b).locator('details').filter({hasText:'Roadmap checkpoints (optional)'});await checkpoints.locator('summary').click();await checkpoints.getByRole('checkbox',{name:new RegExp(checkpoint.title.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'))}).check();await dialog(b).getByRole('button',{name:'Save meeting',exact:true}).click();await dialog(b).waitFor({state:'hidden'});assert.equal((await call('/supervisor-meetings/'+meeting.id)).checkpointRefs[0].checkpointIdentity,linked.associations[0].checkpointIdentity);pass('Meeting editor captures the same current checkpoint identity');
-  const Roadmap=require('../../dist/modules/roadmap/business/services/roadmap.service').RoadmapService;await own.app.get(Roadmap).checkpoint(0,'research-environment-ready',{completed:true});await b.goto(origin+'/skills');await b.locator('.node-select').filter({hasText:'Concurrency skill'}).click();await b.getByText(/Ready to review Level 2/).waitFor();assert.equal((await call('/research-skills/'+skill.id)).proficiency,0);await b.getByRole('button',{name:'Confirm proficiency',exact:true}).click();await dialog(b).getByLabel(/^Confirmed proficiency level/).selectOption('2');await dialog(b).getByLabel('Justification (optional)',{exact:true}).fill('Manual Stage 2 assessment');await dialog(b).getByRole('checkbox',{name:'I confirm this proficiency assessment manually.',exact:true}).check();await dialog(b).getByRole('button',{name:'Save proficiency',exact:true}).click();await dialog(b).waitFor({state:'hidden'});linked=await call('/research-skills/'+skill.id);assert.equal(linked.proficiency,2);assert.equal(linked.proficiencyHistory.length,1);assert.ok(linked.proficiencyHistory[0].changedAt);pass('Target readiness stays separate from explicit manual proficiency and canonical history');
-  const levels=await call('/roadmap'),replacement={schemaVersion:1,roadmapId:'browser-stage2',title:'Owned browser replacement',durationYears:3,levels:levels.map(l=>({levelNumber:l.levelNumber,title:l.title,description:l.description,objectives:l.objectives,checkpoints:l.checkpoints.map(c=>({id:c.id,title:'Replaced '+c.title,required:c.mandatory}))}))};const preview=await call('/roadmap/import/preview','POST',{roadmap:replacement});await call('/roadmap/import/confirm','POST',{roadmap:replacement,digest:preview.digest,revision:preview.revision,confirmation:'REPLACE ROADMAP'},undefined,201);
-  await b.goto(origin+'/skills');await b.locator('.node-select').filter({hasText:'Concurrency skill'}).click();await b.locator('.association').filter({hasText:'Unavailable activity'}).waitFor();linked=await call('/research-skills/'+skill.id);assert.equal(linked.proficiency,2);assert.equal(linked.targeted.find(g=>g.targetLevel===2).ready,false);await b.goto(origin+'/supervisor-meetings/'+meeting.id);await b.getByText('Unavailable checkpoint',{exact:false}).waitFor();pass('Reused public checkpoint IDs show unavailable history in both pages');
-  const Backup=require('../../dist/modules/backup/business/services/backup.service').BackupService,backup=own.app.get(Backup),legacy=await backup.export();for(const l of legacy.data.roadmapLevels)for(const c of l.checkpoints)delete c.checkpointIdentity;for(const s of legacy.data.researchSkills)for(const a of s.associations)delete a.checkpointIdentity;for(const m of legacy.data.supervisorMeetings)for(const r of m.checkpointRefs)delete r.checkpointIdentity;const bp=await backup.preview(legacy);await backup.restore({backup:legacy,...bp,confirmation:'REPLACE ALL DATA'});await b.goto(origin+'/skills');await b.locator('.node-select').filter({hasText:'Concurrency skill'}).click();await b.locator('.association').filter({hasText:'Unverified historical checkpoint'}).waitFor();assert.equal((await call('/research-skills/'+skill.id)).proficiency,2);pass('Legacy backup checkpoint links remain visible and explicitly unverified');
-  const example=structuredClone(require('../../docs/contracts/weekly-plan.v1.example.json'));Object.assign(example,{weekId:'2026-11-15',startDate:'2026-11-15',endDate:'2026-11-21',tasks:[{...example.tasks[0],id:'browser-read-test',date:'2026-11-15'}]});await call('/weekly-plans/import/confirm','POST',example,undefined,201);await own.connection.collection('achievements').updateOne({code:'first_plan'},{$set:{unlockedAt:null}});const readRevision=(await own.connection.collection('_application_control').findOne({_id:'writes'})).revision;
-  await b.goto(origin+'/dashboard');await settle(b);await b.goto(origin+'/achievements');await settle(b);assert.equal((await own.connection.collection('_application_control').findOne({_id:'writes'})).revision,readRevision);assert.equal((await own.connection.collection('achievements').findOne({code:'first_plan'})).unlockedAt,null);await b.getByRole('button',{name:'Check eligible achievements',exact:true}).click();await settle(b);assert.ok((await own.connection.collection('achievements').findOne({code:'first_plan'})).unlockedAt);assert.equal(await own.connection.collection('xp_transactions').countDocuments(),0);pass('Browser navigation is read-only; explicit achievement check unlocks eligible legacy awards without XP');
- }
- assert.deepEqual(errors,[]);fs.writeFileSync(path.join(artifacts,'results.json'),JSON.stringify({passed:results.length,checks:results,pageErrors:errors,isolated:true},null,2));console.log('STAGE 1 BROWSER COMPLETE:',results.length,'checks');
- }finally{if(browser){const pages=browser.contexts().flatMap(c=>c.pages());if(pages[0])await pages[0].screenshot({path:path.join(artifacts,'last-screen.png'),fullPage:true}).catch(()=>{});await browser.close();}if(attacker)await new Promise(r=>attacker.close(r));if(server)await new Promise(r=>server.close(r));if(own)await own.cleanup();}
-})().catch(e=>{console.error(e);process.exitCode=1;});
+const assert = require('node:assert/strict'),
+  fs = require('node:fs'),
+  path = require('node:path'),
+  http = require('node:http'),
+  { randomUUID } = require('node:crypto');
+const { isolated } = require('./isolated.cjs'),
+  { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH);
+const frontend = path.resolve(__dirname, '../../../phd-quest-frontend'),
+  assets = path.join(frontend, 'dist/phd-quest/browser'),
+  artifacts = path.join(frontend, '.artifacts/stage1');
+fs.mkdirSync(artifacts, { recursive: true });
+let own, server, browser, attacker;
+const results = [];
+const pass = (label) => {
+  results.push(label);
+  console.log('PASS', label);
+};
+(async () => {
+  try {
+    let api;
+    const proxyConfig = JSON.parse(fs.readFileSync(path.join(frontend, 'proxy.conf.json'), 'utf8'));
+    assert.equal(proxyConfig['/api'].changeOrigin, true);
+    server = http.createServer((req, res) => {
+      if (req.url.startsWith('/api')) {
+        const target = new URL(req.url, api),
+          proxy = http.request(
+            target,
+            { method: req.method, headers: { ...req.headers, host: target.host } },
+            (r) => {
+              res.writeHead(r.statusCode, r.headers);
+              r.pipe(res);
+            },
+          );
+        proxy.on('error', () => res.writeHead(502).end());
+        req.pipe(proxy);
+        return;
+      }
+      const file = path.join(assets, decodeURIComponent(req.url.split('?')[0]));
+      const selected =
+        fs.existsSync(file) && fs.statSync(file).isFile() ? file : path.join(assets, 'index.html');
+      res.setHeader(
+        'content-type',
+        {
+          '.js': 'text/javascript',
+          '.css': 'text/css',
+          '.html': 'text/html',
+          '.svg': 'image/svg+xml',
+        }[path.extname(selected)] || 'application/octet-stream',
+      );
+      fs.createReadStream(selected).pipe(res);
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const origin = 'http://127.0.0.1:' + server.address().port;
+    const uri = new URL(process.env.MONGODB_URI);
+    uri.pathname = '/phd_quest_stage1_' + randomUUID().replaceAll('-', '');
+    own = await isolated(uri.toString(), { CORS_ORIGINS: origin });
+    api = new URL(own.base).origin;
+    async function call(endpoint, method = 'GET', body, version, status = 200) {
+      const response = await fetch(own.base + endpoint, {
+        method,
+        headers: {
+          'content-type': 'application/json',
+          ...(version ? { 'if-match': JSON.stringify(version) } : {}),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      const data = await response.json();
+      assert.equal(response.status, status, JSON.stringify(data));
+      return data;
+    }
+    const category = await call(
+        '/research-skills/categories',
+        'POST',
+        { name: 'Safety research' },
+        undefined,
+        201,
+      ),
+      skill = await call(
+        '/research-skills',
+        'POST',
+        { name: 'Concurrency skill', categoryId: category.id },
+        undefined,
+        201,
+      ),
+      profile = await call('/supervisors', 'POST', { name: 'Safety supervisor' }, undefined, 201),
+      meeting = await call(
+        '/supervisor-meetings',
+        'POST',
+        {
+          title: 'Concurrency meeting',
+          scheduledAt: '2026-12-01T10:00:00Z',
+          supervisorIds: [profile.id],
+        },
+        undefined,
+        201,
+      );
+    browser = await chromium.launch({
+      executablePath:
+        process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+      headless: true,
+    });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }),
+      a = await context.newPage(),
+      b = await context.newPage(),
+      errors = [];
+    for (const page of [a, b]) {
+      page.on('pageerror', (e) => errors.push(e.message));
+      page.setDefaultTimeout(15000);
+    }
+    const dialog = (page) => page.getByRole('dialog', { includeHidden: false });
+    const panel = (page) => dialog(page).getByRole('alert', { name: 'Unsaved conflicting draft' });
+    const settle = async (page) => {
+      await page.waitForLoadState('networkidle');
+      await page.locator('pq-loading').waitFor({ state: 'hidden' });
+    };
+    async function openSkill(page) {
+      await page.goto(origin + '/skills');
+      await page.locator('.node-select').filter({ hasText: 'Concurrency skill' }).click();
+      await page.getByRole('button', { name: 'Edit skill', exact: true }).click();
+    }
+    if (
+      !process.argv.includes('--boundary-only') &&
+      !process.argv.includes('--layout-only') &&
+      !process.argv.includes('--stage2-only')
+    ) {
+      await openSkill(a);
+      await openSkill(b);
+      await dialog(b)
+        .getByLabel('Skill description', { exact: true })
+        .fill('Client B unsaved skill draft');
+      await dialog(a).getByLabel('Skill description', { exact: true }).fill('Client A saved skill');
+      await dialog(a).getByRole('button', { name: 'Save skill', exact: true }).click();
+      await dialog(a).waitFor({ state: 'hidden' });
+      await dialog(b).getByRole('button', { name: 'Save skill', exact: true }).click();
+      await panel(b).waitFor();
+      assert.equal(
+        await dialog(b).getByLabel('Skill description', { exact: true }).inputValue(),
+        'Client B unsaved skill draft',
+      );
+      assert.equal(
+        (await call('/research-skills/' + skill.id)).description,
+        'Client A saved skill',
+      );
+      pass('Two real skill editors: stale save conflicts and keeps the draft');
+      await panel(b).getByRole('button', { name: 'Inspect latest record', exact: true }).click();
+      await panel(b).locator('pre').filter({ hasText: 'Client A saved skill' }).waitFor();
+      assert.equal(
+        await dialog(b).getByLabel('Skill description', { exact: true }).inputValue(),
+        'Client B unsaved skill draft',
+      );
+      await panel(b).getByRole('button', { name: 'Discard draft and reload', exact: true }).click();
+      await dialog(b).waitFor({ state: 'hidden' });
+      await settle(b);
+      await b.getByRole('button', { name: 'Edit skill', exact: true }).click();
+      assert.equal(
+        await dialog(b).getByLabel('Skill description', { exact: true }).inputValue(),
+        'Client A saved skill',
+      );
+      await dialog(b)
+        .getByLabel('Skill description', { exact: true })
+        .fill('Client B deliberate fresh save');
+      await dialog(b).getByRole('button', { name: 'Save skill', exact: true }).click();
+      await dialog(b).waitFor({ state: 'hidden' });
+      pass('Inspect preserves draft; explicit discard/reload allows a deliberate fresh skill save');
+      for (const page of [a, b]) {
+        await page.goto(origin + '/supervisor-meetings/' + meeting.id);
+        await page.getByRole('button', { name: 'Edit / reschedule', exact: true }).click();
+      }
+      await dialog(b)
+        .getByLabel('Agenda (optional)', { exact: true })
+        .fill('Client B unsaved agenda');
+      await dialog(a).getByLabel('Agenda (optional)', { exact: true }).fill('Client A agenda');
+      await dialog(a).getByRole('button', { name: 'Save meeting', exact: true }).click();
+      await dialog(a).waitFor({ state: 'hidden' });
+      await dialog(b).getByRole('button', { name: 'Save meeting', exact: true }).click();
+      await panel(b).waitFor();
+      assert.equal(
+        await dialog(b).getByLabel('Agenda (optional)', { exact: true }).inputValue(),
+        'Client B unsaved agenda',
+      );
+      assert.equal(
+        (await call('/supervisor-meetings/' + meeting.id)).notes.agenda,
+        'Client A agenda',
+      );
+      await panel(b).getByRole('button', { name: 'Inspect latest record', exact: true }).click();
+      await panel(b).locator('pre').filter({ hasText: 'Client A agenda' }).waitFor();
+      await panel(b).getByRole('button', { name: 'Discard draft and reload', exact: true }).click();
+      await dialog(b).waitFor({ state: 'hidden' });
+      pass('Two meeting editors retain conflicting notes and inspect the current record');
+      for (const page of [a, b]) {
+        await page.goto(origin + '/supervisor-meetings');
+        await page.getByRole('button', { name: 'Supervisors', exact: true }).click();
+        await page.getByRole('button', { name: 'Edit supervisor', exact: true }).click();
+      }
+      await dialog(b)
+        .getByLabel('Supervisor notes', { exact: true })
+        .fill('Client B unsaved profile');
+      await dialog(a).getByLabel('Supervisor notes', { exact: true }).fill('Client A profile');
+      await dialog(a).getByRole('button', { name: 'Save supervisor', exact: true }).click();
+      await dialog(a).waitFor({ state: 'hidden' });
+      await dialog(b).getByRole('button', { name: 'Save supervisor', exact: true }).click();
+      await panel(b).waitFor();
+      assert.equal(
+        await dialog(b).getByLabel('Supervisor notes', { exact: true }).inputValue(),
+        'Client B unsaved profile',
+      );
+      await panel(b).getByRole('button', { name: 'Discard draft and reload', exact: true }).click();
+      await dialog(b).waitFor({ state: 'hidden' });
+      pass('Supervisor profile conflict preserves the unsaved contact draft');
+      // Trusted browser writes have gone through the same changeOrigin proxy shape as Angular.
+      pass(
+        'Trusted browser JSON writes and If-Match pass through the development proxy configuration',
+      );
+    }
+    if (!process.argv.includes('--layout-only') && !process.argv.includes('--stage2-only')) {
+      // A real untrusted browser form targets only the disposable API, never localhost:3000.
+      const count = await own.connection.collection('supervisors').countDocuments(),
+        rev = (await own.connection.collection('_application_control').findOne({ _id: 'writes' }))
+          .revision;
+      attacker = http.createServer((_req, res) => {
+        res.setHeader('content-type', 'text/html');
+        res.end(
+          `<form method="post" action="${api}/api/supervisors" target="sink"><input name="name" value="External browser form"></form><iframe name="sink"></iframe>`,
+        );
+      });
+      await new Promise((r) => attacker.listen(0, '127.0.0.1', r));
+      const evil = await context.newPage(),
+        network = [];
+      evil.on('requestfailed', (r) =>
+        network.push({ url: r.url(), error: r.failure()?.errorText }),
+      );
+      evil.on('console', (m) => {
+        if (m.type() === 'error') network.push({ console: m.text() });
+      });
+      await evil.goto('http://127.0.0.1:' + attacker.address().port);
+      const denied = evil
+        .waitForResponse((r) => r.url() === api + '/api/supervisors', { timeout: 10000 })
+        .then((r) => r.status())
+        .catch(() => null);
+      await evil.locator('form').evaluate((form) => form.submit());
+      const status = await denied;
+      fs.writeFileSync(
+        path.join(artifacts, 'boundary-network.json'),
+        JSON.stringify({ status, network }, null, 2),
+      );
+      assert.equal(status, 403, JSON.stringify(network));
+      assert.equal(await own.connection.collection('supervisors').countDocuments(), count);
+      assert.equal(
+        (await own.connection.collection('_application_control').findOne({ _id: 'writes' }))
+          .revision,
+        rev,
+      );
+      await evil.close();
+      pass('Actual cross-origin browser form receives 403 without data or revision changes');
+    }
+    if (!process.argv.includes('--stage2-only')) {
+      for (const route of ['dashboard', 'help']) {
+        await b.goto(origin + '/' + route);
+        await settle(b);
+        assert.ok(await b.locator('h1').count());
+      }
+      pass('Dashboard and Help remain accessible');
+      await b.goto(origin + '/skills');
+      await settle(b);
+      await b.screenshot({ path: path.join(artifacts, 'desktop.png'), fullPage: true });
+      await b.setViewportSize({ width: 390, height: 844 });
+      await b.waitForFunction(
+        () => document.documentElement.scrollWidth <= innerWidth + 1,
+        {},
+        { timeout: 5000 },
+      );
+      await b.screenshot({ path: path.join(artifacts, 'mobile.png'), fullPage: true });
+      pass('Desktop/mobile smoke check without horizontal overflow');
+    }
+    if (process.env.STAGE2_BROWSER === '1') {
+      await b.setViewportSize({ width: 1440, height: 1000 });
+      await b.goto(origin + '/skills');
+      await b.locator('.node-select').filter({ hasText: 'Concurrency skill' }).click();
+      await b.getByRole('button', { name: 'Link activity', exact: true }).click();
+      await dialog(b)
+        .getByLabel(/^Activity source type/)
+        .selectOption('roadmap_checkpoint');
+      await dialog(b)
+        .getByLabel(/^Roadmap checkpoint/)
+        .selectOption('0:research-environment-ready');
+      await dialog(b)
+        .getByLabel(/^Optional target proficiency/)
+        .selectOption('2');
+      await dialog(b).getByRole('button', { name: 'Save activity links', exact: true }).click();
+      await dialog(b).waitFor({ state: 'hidden' });
+      await settle(b);
+      let linked = await call('/research-skills/' + skill.id);
+      assert.ok(linked.associations[0].checkpointIdentity);
+      assert.equal(linked.proficiency, 0);
+      pass('New checkpoint link captures immutable identity through the Skill editor');
+      const checkpoint = (await call('/roadmap'))[0].checkpoints[0];
+      await b.goto(origin + '/supervisor-meetings/' + meeting.id);
+      await b.getByRole('button', { name: 'Edit / reschedule', exact: true }).click();
+      const checkpoints = dialog(b)
+        .locator('details')
+        .filter({ hasText: 'Roadmap checkpoints (optional)' });
+      await checkpoints.locator('summary').click();
+      await checkpoints
+        .getByRole('checkbox', {
+          name: new RegExp(checkpoint.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+        })
+        .check();
+      await dialog(b).getByRole('button', { name: 'Save meeting', exact: true }).click();
+      await dialog(b).waitFor({ state: 'hidden' });
+      assert.equal(
+        (await call('/supervisor-meetings/' + meeting.id)).checkpointRefs[0].checkpointIdentity,
+        linked.associations[0].checkpointIdentity,
+      );
+      pass('Meeting editor captures the same current checkpoint identity');
+      const Roadmap =
+        require('../../dist/modules/roadmap/business/services/roadmap.service').RoadmapService;
+      await own.app.get(Roadmap).checkpoint(0, 'research-environment-ready', { completed: true });
+      await b.goto(origin + '/skills');
+      await b.locator('.node-select').filter({ hasText: 'Concurrency skill' }).click();
+      await b.getByText(/Ready to review Level 2/).waitFor();
+      assert.equal((await call('/research-skills/' + skill.id)).proficiency, 0);
+      await b.getByRole('button', { name: 'Confirm proficiency', exact: true }).click();
+      await dialog(b)
+        .getByLabel(/^Confirmed proficiency level/)
+        .selectOption('2');
+      await dialog(b)
+        .getByLabel('Justification (optional)', { exact: true })
+        .fill('Manual Stage 2 assessment');
+      await dialog(b)
+        .getByRole('checkbox', {
+          name: 'I confirm this proficiency assessment manually.',
+          exact: true,
+        })
+        .check();
+      await dialog(b).getByRole('button', { name: 'Save proficiency', exact: true }).click();
+      await dialog(b).waitFor({ state: 'hidden' });
+      linked = await call('/research-skills/' + skill.id);
+      assert.equal(linked.proficiency, 2);
+      assert.equal(linked.proficiencyHistory.length, 1);
+      assert.ok(linked.proficiencyHistory[0].changedAt);
+      pass(
+        'Target readiness stays separate from explicit manual proficiency and canonical history',
+      );
+      const levels = await call('/roadmap'),
+        replacement = {
+          schemaVersion: 1,
+          roadmapId: 'browser-stage2',
+          title: 'Owned browser replacement',
+          durationYears: 3,
+          levels: levels.map((l) => ({
+            levelNumber: l.levelNumber,
+            title: l.title,
+            description: l.description,
+            objectives: l.objectives,
+            checkpoints: l.checkpoints.map((c) => ({
+              id: c.id,
+              title: 'Replaced ' + c.title,
+              required: c.mandatory,
+            })),
+          })),
+        };
+      const preview = await call('/roadmap/import/preview', 'POST', { roadmap: replacement });
+      await call(
+        '/roadmap/import/confirm',
+        'POST',
+        {
+          roadmap: replacement,
+          digest: preview.digest,
+          revision: preview.revision,
+          confirmation: 'REPLACE ROADMAP',
+        },
+        undefined,
+        201,
+      );
+      await b.goto(origin + '/skills');
+      await b.locator('.node-select').filter({ hasText: 'Concurrency skill' }).click();
+      await b.locator('.association').filter({ hasText: 'Unavailable activity' }).waitFor();
+      linked = await call('/research-skills/' + skill.id);
+      assert.equal(linked.proficiency, 2);
+      assert.equal(linked.targeted.find((g) => g.targetLevel === 2).ready, false);
+      await b.goto(origin + '/supervisor-meetings/' + meeting.id);
+      await b.getByText('Unavailable checkpoint', { exact: false }).waitFor();
+      pass('Reused public checkpoint IDs show unavailable history in both pages');
+      const Backup =
+          require('../../dist/modules/backup/business/services/backup.service').BackupService,
+        backup = own.app.get(Backup),
+        legacy = await backup.export();
+      for (const l of legacy.data.roadmapLevels)
+        for (const c of l.checkpoints) delete c.checkpointIdentity;
+      for (const s of legacy.data.researchSkills)
+        for (const a of s.associations) delete a.checkpointIdentity;
+      for (const m of legacy.data.supervisorMeetings)
+        for (const r of m.checkpointRefs) delete r.checkpointIdentity;
+      const bp = await backup.preview(legacy);
+      await backup.restore({ backup: legacy, ...bp, confirmation: 'REPLACE ALL DATA' });
+      await b.goto(origin + '/skills');
+      await b.locator('.node-select').filter({ hasText: 'Concurrency skill' }).click();
+      await b
+        .locator('.association')
+        .filter({ hasText: 'Unverified historical checkpoint' })
+        .waitFor();
+      assert.equal((await call('/research-skills/' + skill.id)).proficiency, 2);
+      pass('Legacy backup checkpoint links remain visible and explicitly unverified');
+      const example = structuredClone(require('../../docs/contracts/weekly-plan.v1.example.json'));
+      Object.assign(example, {
+        weekId: '2026-11-15',
+        startDate: '2026-11-15',
+        endDate: '2026-11-21',
+        tasks: [{ ...example.tasks[0], id: 'browser-read-test', date: '2026-11-15' }],
+      });
+      await call('/weekly-plans/import/confirm', 'POST', example, undefined, 201);
+      await own.connection
+        .collection('achievements')
+        .updateOne({ code: 'first_plan' }, { $set: { unlockedAt: null } });
+      const readRevision = (
+        await own.connection.collection('_application_control').findOne({ _id: 'writes' })
+      ).revision;
+      await b.goto(origin + '/dashboard');
+      await settle(b);
+      await b.goto(origin + '/achievements');
+      await settle(b);
+      assert.equal(
+        (await own.connection.collection('_application_control').findOne({ _id: 'writes' }))
+          .revision,
+        readRevision,
+      );
+      assert.equal(
+        (await own.connection.collection('achievements').findOne({ code: 'first_plan' }))
+          .unlockedAt,
+        null,
+      );
+      await b.getByRole('button', { name: 'Check eligible achievements', exact: true }).click();
+      await settle(b);
+      assert.ok(
+        (await own.connection.collection('achievements').findOne({ code: 'first_plan' }))
+          .unlockedAt,
+      );
+      assert.equal(await own.connection.collection('xp_transactions').countDocuments(), 0);
+      pass(
+        'Browser navigation is read-only; explicit achievement check unlocks eligible legacy awards without XP',
+      );
+    }
+    assert.deepEqual(errors, []);
+    fs.writeFileSync(
+      path.join(artifacts, 'results.json'),
+      JSON.stringify(
+        { passed: results.length, checks: results, pageErrors: errors, isolated: true },
+        null,
+        2,
+      ),
+    );
+    console.log('STAGE 1 BROWSER COMPLETE:', results.length, 'checks');
+  } finally {
+    if (browser) {
+      const pages = browser.contexts().flatMap((c) => c.pages());
+      if (pages[0])
+        await pages[0]
+          .screenshot({ path: path.join(artifacts, 'last-screen.png'), fullPage: true })
+          .catch(() => {});
+      await browser.close();
+    }
+    if (attacker) await new Promise((r) => attacker.close(r));
+    if (server) await new Promise((r) => server.close(r));
+    if (own) await own.cleanup();
+  }
+})().catch((e) => {
+  console.error(e);
+  process.exitCode = 1;
+});

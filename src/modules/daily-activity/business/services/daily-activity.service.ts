@@ -7,14 +7,28 @@ import { ActivitySummaryDto } from '../../api/dtos/activity-summary.dto';
 import { streaks } from './streaks';
 @Injectable()
 export class DailyActivityService {
-  constructor(private readonly repository: DailyActivityRepository, private readonly clock: ApplicationClock) {}
-  record(event: ActivityEvent, session: ClientSession) { return this.repository.record(this.clock.dateAt(event.occurredAt), event, session); }
+  constructor(
+    private readonly repository: DailyActivityRepository,
+    private readonly clock: ApplicationClock,
+  ) {}
+  record(event: ActivityEvent, session: ClientSession) {
+    return this.repository.record(this.clock.dateAt(event.occurredAt), event, session);
+  }
   async summary(at: Date, session: ClientSession): Promise<ActivitySummaryDto> {
-    const history = await this.repository.history(session), date = this.clock.dateAt(at);
-    const today = history.find(item => item.date === date);
-    return { ...streaks(history.map(item => item.date), date), todayActivity: {
-      date, taskCompletionCount: today?.taskCompletionCount ?? 0,
-      firstActivityAt: today?.firstActivityAt.toISOString() ?? null, lastActivityAt: today?.lastActivityAt.toISOString() ?? null,
-    } };
+    const history = await this.repository.history(session),
+      date = this.clock.dateAt(at);
+    const today = history.find((item) => item.date === date);
+    return {
+      ...streaks(
+        history.map((item) => item.date),
+        date,
+      ),
+      todayActivity: {
+        date,
+        taskCompletionCount: today?.taskCompletionCount ?? 0,
+        firstActivityAt: today?.firstActivityAt.toISOString() ?? null,
+        lastActivityAt: today?.lastActivityAt.toISOString() ?? null,
+      },
+    };
   }
 }

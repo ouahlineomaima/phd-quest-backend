@@ -5,10 +5,7 @@
   "startDate": "2026-11-15",
   "endDate": "2026-11-21",
   "title": "Research Preparation — Week 1",
-  "objectives": [
-    "Organize the research workspace",
-    "Configure reference management"
-  ],
+  "objectives": ["Organize the research workspace", "Configure reference management"],
   "tasks": [
     {
       "id": "setup-workspace",

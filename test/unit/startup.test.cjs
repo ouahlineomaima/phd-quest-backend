@@ -5,7 +5,8 @@ const { spawnSync } = require('node:child_process');
 test('real application startup fails fast and safely for invalid configuration', () => {
   const child = spawnSync(process.execPath, ['dist/main.js'], {
     env: { ...process.env, MONGODB_URI: 'sensitive-password', PORT: 'invalid', NODE_ENV: 'test' },
-    encoding: 'utf8', timeout: 10000,
+    encoding: 'utf8',
+    timeout: 10000,
   });
   assert.equal(child.error, undefined);
   assert.notEqual(child.status, 0);

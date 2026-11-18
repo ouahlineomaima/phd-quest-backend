@@ -13,14 +13,19 @@ export class HealthService {
 
   async check() {
     try {
-      if (this.connection.readyState !== 1 || !this.connection.db) throw new Error('Database unavailable');
-      await this.connection.db.admin().command({ ping: 1 }, {
-        timeoutMS: Math.min(this.config.get('MONGO_CONNECT_TIMEOUT_MS', { infer: true }), 2000),
-      });
+      if (this.connection.readyState !== 1 || !this.connection.db)
+        throw new Error('Database unavailable');
+      await this.connection.db.admin().command(
+        { ping: 1 },
+        {
+          timeoutMS: Math.min(this.config.get('MONGO_CONNECT_TIMEOUT_MS', { infer: true }), 2000),
+        },
+      );
       return { status: 'ok', database: 'up', timestamp: new Date().toISOString() };
     } catch {
       throw new ServiceUnavailableException({
-        code: 'DATABASE_UNAVAILABLE', message: 'Database is unavailable',
+        code: 'DATABASE_UNAVAILABLE',
+        message: 'Database is unavailable',
         details: [{ status: 'error', database: 'down' }],
       });
     }

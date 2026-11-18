@@ -11,15 +11,12 @@
     "eslint.config.mjs"
   ],
   "format": [
-    "src/common/{api-exception.filter,request-logging,request-context,safe-error-diagnostic,configure-api}.ts",
-    "test/stage3/*.test.cjs",
-    "test/unit/logging.test.cjs",
-    "scripts/quality.mjs",
-    "eslint.config.mjs",
-    "quality-scope.json",
-    ".prettierrc.json",
-    "package.json",
-    "docs/STAGE3.md",
-    "test/stage3/browser.check.cjs"
+    "src/**/*.{ts,html,css,scss,json}",
+    "test/**/*.{ts,js,cjs,mjs,json}",
+    "scripts/**/*.{ts,js,cjs,mjs,json}",
+    "docs/**/*.{md,json,yml,yaml}",
+    "infra/**/*.{js,cjs,mjs,json,md,yml,yaml}",
+    "*.{ts,js,cjs,mjs,json,md,yml,yaml}",
+    ".prettierrc.json"
   ]
 }

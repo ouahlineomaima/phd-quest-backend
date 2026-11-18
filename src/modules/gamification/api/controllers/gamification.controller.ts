@@ -3,5 +3,7 @@ import { GamificationService } from '../../business/services/gamification.servic
 @Controller('gamification')
 export class GamificationController {
   constructor(private readonly gamification: GamificationService) {}
-  @Get('summary') summary() { return this.gamification.summary(); }
+  @Get('summary') summary() {
+    return this.gamification.summary();
+  }
 }

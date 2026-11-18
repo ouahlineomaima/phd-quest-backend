@@ -5,5 +5,13 @@ import { FOCUS_MODEL, focusSessionSchema } from './persistence/models/focus-sess
 import { FocusSessionsController } from './api/controllers/focus-sessions.controller';
 import { FocusSessionsService } from './business/services/focus-sessions.service';
 import { FocusSessionsRepository } from './persistence/repositories/focus-sessions.repository';
-@Module({imports:[TimeModule,MongooseModule.forFeature([{name:FOCUS_MODEL,schema:focusSessionSchema}])],controllers:[FocusSessionsController],providers:[FocusSessionsRepository,FocusSessionsService],exports:[MongooseModule,FocusSessionsService]})
+@Module({
+  imports: [
+    TimeModule,
+    MongooseModule.forFeature([{ name: FOCUS_MODEL, schema: focusSessionSchema }]),
+  ],
+  controllers: [FocusSessionsController],
+  providers: [FocusSessionsRepository, FocusSessionsService],
+  exports: [MongooseModule, FocusSessionsService],
+})
 export class FocusSessionsModule {}

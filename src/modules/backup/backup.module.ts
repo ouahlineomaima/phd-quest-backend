@@ -10,5 +10,18 @@ import { AchievementsModule } from '../achievements/achievements.module';
 import { BackupRepository } from './persistence/repositories/backup.repository';
 import { BackupService } from './business/services/backup.service';
 import { BackupController } from './api/controllers/backup.controller';
-@Module({ imports: [ResearchSkillsModule, SupervisorMeetingsModule, FocusSessionsModule, TimeModule, WeeklyPlansModule, RoadmapModule, GoalsModule, AchievementsModule], providers: [BackupRepository, BackupService], controllers: [BackupController] })
+@Module({
+  imports: [
+    ResearchSkillsModule,
+    SupervisorMeetingsModule,
+    FocusSessionsModule,
+    TimeModule,
+    WeeklyPlansModule,
+    RoadmapModule,
+    GoalsModule,
+    AchievementsModule,
+  ],
+  providers: [BackupRepository, BackupService],
+  controllers: [BackupController],
+})
 export class BackupModule {}

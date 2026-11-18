@@ -1,7 +1,7 @@
 import { BadRequestException, ValidationError, ValidationPipe } from '@nestjs/common';
 
 function fieldErrors(errors: ValidationError[], parent = ''): { field: string; rules: string[] }[] {
-  return errors.flatMap(error => {
+  return errors.flatMap((error) => {
     const field = parent ? `${parent}.${error.property}` : error.property;
     return [
       ...(error.constraints ? [{ field, rules: Object.keys(error.constraints) }] : []),
@@ -17,8 +17,11 @@ export function createValidationPipe() {
     forbidUnknownValues: true,
     transform: true,
     validationError: { target: false, value: false },
-    exceptionFactory: errors => new BadRequestException({
-      code: 'VALIDATION_ERROR', message: 'Request validation failed', details: fieldErrors(errors),
-    }),
+    exceptionFactory: (errors) =>
+      new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed',
+        details: fieldErrors(errors),
+      }),
   });
 }

@@ -89,17 +89,17 @@ To add a feature: create these directories; define explicit request/response DTO
 
 `ConfigModule` validates configuration at startup before connecting. Errors list invalid setting names and acceptable ranges, without printing values or credentials. The existing MongoDB driver parses the URI without opening a connection. Numeric settings accept integers only; CORS accepts explicit comma-separated HTTP origins, without paths or credentials.
 
-| Setting | Default | Validation |
-| --- | --- | --- |
-| MONGODB_URI | Required | Valid mongodb or mongodb+srv URI |
-| NODE_ENV | development | development, test, production |
-| APP_TIMEZONE | Africa/Casablanca | Supported Intl timezone; do not change existing activity dates without a migration plan |
-| PORT | 3000 | 1-65535 |
-| CORS_ORIGINS | http://localhost:4200 | One or more explicit origins |
-| BODY_LIMIT_BYTES | 1048576 | 1024-10485760 |
-| MONGO_CONNECT_TIMEOUT_MS | 5000 | 100-60000 |
-| MONGO_RETRY_ATTEMPTS | 3 | 0-10 |
-| MONGO_RETRY_DELAY_MS | 1000 | 0-30000 |
+| Setting                  | Default               | Validation                                                                              |
+| ------------------------ | --------------------- | --------------------------------------------------------------------------------------- |
+| MONGODB_URI              | Required              | Valid mongodb or mongodb+srv URI                                                        |
+| NODE_ENV                 | development           | development, test, production                                                           |
+| APP_TIMEZONE             | Africa/Casablanca     | Supported Intl timezone; do not change existing activity dates without a migration plan |
+| PORT                     | 3000                  | 1-65535                                                                                 |
+| CORS_ORIGINS             | http://localhost:4200 | One or more explicit origins                                                            |
+| BODY_LIMIT_BYTES         | 1048576               | 1024-10485760                                                                           |
+| MONGO_CONNECT_TIMEOUT_MS | 5000                  | 100-60000                                                                               |
+| MONGO_RETRY_ATTEMPTS     | 3                     | 0-10                                                                                    |
+| MONGO_RETRY_DELAY_MS     | 1000                  | 0-30000                                                                                 |
 
 The database module centralizes these options. Nest Mongoose counts `retryAttempts` as total startup attempts; values 0 and 1 each allow the initial attempt only. Driver connect and server-selection timeouts use the configured timeout. The pool has at most 10 connections, idle minimum 0, and a 10-second socket timeout. Command buffering and automatic collection creation are disabled. Automatic indexes are disabled in production; future index changes need an explicit migration/deployment procedure.
 

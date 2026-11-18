@@ -14,26 +14,26 @@ No business features or dependency versions were changed. The parent remains out
 
 ## Executed checks
 
-| Check | Result |
-| --- | --- |
-| Frontend production build inside Node 24 container | Passed; initial bundle 208.30 kB |
-| Backend production build inside Node 24 container | Passed |
-| Migrated Compose configuration validation | Passed |
-| Both development images build with existing locks | Passed |
-| All three services start and become healthy | Passed |
-| Frontend HTTP | HTTP 200 |
-| Direct API health and database ping | Passed |
-| Frontend proxy to backend | Passed |
-| Replica-set name / writable primary | rs0 / true |
-| Data across infrastructure migration | Passed |
-| Data across ordinary `docker compose restart` | Passed; test marker found and removed |
-| Health and proxy after restart | Passed |
-| Windows localhost TCP reachability | Passed |
-| Windows MongoDB protocol connection using Compass URI | Passed; ping, rs0 and writable primary verified |
-| Git identity | ouahlineomaima / omaimaouahline@gmail.com |
-| Remote history before initialization | Both `git ls-remote` calls returned no advertised references |
-| Git origin / primary branch | Correct provided URLs / main in each repository |
-| Ignore and staged-file review | Local env, dependencies, outputs, database dumps and backups excluded |
+| Check                                                 | Result                                                                |
+| ----------------------------------------------------- | --------------------------------------------------------------------- |
+| Frontend production build inside Node 24 container    | Passed; initial bundle 208.30 kB                                      |
+| Backend production build inside Node 24 container     | Passed                                                                |
+| Migrated Compose configuration validation             | Passed                                                                |
+| Both development images build with existing locks     | Passed                                                                |
+| All three services start and become healthy           | Passed                                                                |
+| Frontend HTTP                                         | HTTP 200                                                              |
+| Direct API health and database ping                   | Passed                                                                |
+| Frontend proxy to backend                             | Passed                                                                |
+| Replica-set name / writable primary                   | rs0 / true                                                            |
+| Data across infrastructure migration                  | Passed                                                                |
+| Data across ordinary `docker compose restart`         | Passed; test marker found and removed                                 |
+| Health and proxy after restart                        | Passed                                                                |
+| Windows localhost TCP reachability                    | Passed                                                                |
+| Windows MongoDB protocol connection using Compass URI | Passed; ping, rs0 and writable primary verified                       |
+| Git identity                                          | ouahlineomaima / omaimaouahline@gmail.com                             |
+| Remote history before initialization                  | Both `git ls-remote` calls returned no advertised references          |
+| Git origin / primary branch                           | Correct provided URLs / main in each repository                       |
+| Ignore and staged-file review                         | Local env, dependencies, outputs, database dumps and backups excluded |
 
 `scripts/verify.ps1` exited 0 with its full PASS result. `scripts/compass-check.cjs` exited 0 when run with the portable Node toolchain on Windows. Compass GUI itself was not launched; the same connection path and URI were verified using Mongoose.
 

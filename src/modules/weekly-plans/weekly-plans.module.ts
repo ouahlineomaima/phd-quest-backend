@@ -12,7 +12,13 @@ import { DailyActivityModule } from '../daily-activity/daily-activity.module';
 import { TimeModule } from '../../common/application-clock';
 
 @Module({
-  imports: [AchievementsModule,TimeModule, GamificationModule, DailyActivityModule, MongooseModule.forFeature([{ name: WEEKLY_PLAN_MODEL, schema: weeklyPlanSchema }])],
+  imports: [
+    AchievementsModule,
+    TimeModule,
+    GamificationModule,
+    DailyActivityModule,
+    MongooseModule.forFeature([{ name: WEEKLY_PLAN_MODEL, schema: weeklyPlanSchema }]),
+  ],
   controllers: [WeeklyPlansController, TaskProgressController],
   providers: [WeeklyPlansRepository, WeeklyPlansService, TaskProgressService],
 })
