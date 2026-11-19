@@ -10,3 +10,5 @@ dist/
 backups/
 dump/
 .DS_Store
+
+.artifacts/

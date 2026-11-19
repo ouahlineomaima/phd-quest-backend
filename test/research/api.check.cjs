@@ -1,15 +1,14 @@
+const { isolated } = require('../safety/isolated.cjs');
+const { randomUUID } = require('node:crypto');
 // Run only against a separately started API using an owned validation database.
 const assert = require('node:assert/strict'),
   mongoose = require('mongoose');
 (async () => {
-  const base = new URL(process.env.RESEARCH_TEST_BASE_URL);
-  assert.ok(['localhost', '127.0.0.1', 'host.docker.internal'].includes(base.hostname));
-  assert.ok(base.port && base.port !== '3000');
-  const uri = new URL(process.env.RESEARCH_TEST_DB_URI);
-  assert.match(uri.pathname, /^\/phd_quest_phase6_validation_[a-f0-9]{32}$/);
-  const db = await mongoose
-    .createConnection(uri.toString(), { serverSelectionTimeoutMS: 5000 })
-    .asPromise();
+  const uri = new URL(process.env.MONGODB_URI);
+  uri.pathname = '/phd_quest_stage4_' + randomUUID().replaceAll('-', '');
+  const own = await isolated(uri.toString());
+  const base = new URL(own.base),
+    db = own.connection;
   const call = async (path, method = 'GET', body, status = 200) => {
     const r = await fetch(base.href.replace(/\/$/, '') + '/' + path, {
       method,
@@ -137,7 +136,7 @@ const assert = require('node:assert/strict'),
       'PASS HTTP: strict DTOs, empty/populated current week, goal lifecycle, historical achievements, task XP, independent research progression, dashboard totals and bounded activity.',
     );
   } finally {
-    await db.close();
+    await own.cleanup();
   }
 })().catch((e) => {
   console.error(e);

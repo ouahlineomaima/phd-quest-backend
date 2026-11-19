@@ -1,3 +1,4 @@
+const { reserveDatabase, releaseDatabase } = require('../safety/owned-database.cjs');
 // Real browser + real isolated API. No request is sent to the user's application origin.
 const assert = require('node:assert/strict'),
   fs = require('node:fs'),
@@ -6,7 +7,7 @@ const assert = require('node:assert/strict'),
   { randomUUID } = require('node:crypto'),
   mongoose = require('mongoose');
 require('reflect-metadata');
-const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH),
+const { launchBrowser } = require('../safety/browser.cjs'),
   { NestFactory } = require('@nestjs/core'),
   { Module } = require('@nestjs/common'),
   { ConfigModule, ConfigService } = require('@nestjs/config'),
@@ -46,6 +47,7 @@ const pass = (label) => {
     server = http.createServer();
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     const testOrigin = 'http://127.0.0.1:' + server.address().port;
+    await reserveDatabase(uri.toString());
     class Owned {}
     Module({
       imports: [
@@ -137,10 +139,7 @@ const pass = (label) => {
       fs.createReadStream(target).pipe(res);
     });
     const origin = 'http://127.0.0.1:' + server.address().port;
-    browser = await chromium.launch({
-      executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
-      headless: true,
-    });
+    browser = await launchBrowser();
     const context = await browser.newContext({
         viewport: { width: 1440, height: 1000 },
         timezoneId: 'America/New_York',
@@ -562,10 +561,7 @@ const pass = (label) => {
     if (server) await new Promise((resolve) => server.close(resolve));
     if (app) await app.close();
     assert.match(name, /^phd_quest_meetings_browser_[a-f0-9]{32}$/);
-    const db = await mongoose.createConnection(uri.toString()).asPromise();
-    assert.equal(db.name, name);
-    await db.dropDatabase();
-    await db.close();
+    await releaseDatabase(uri.toString());
   }
 })().catch((error) => {
   console.error(error);

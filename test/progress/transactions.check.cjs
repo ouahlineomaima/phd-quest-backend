@@ -1,3 +1,4 @@
+const { reserveDatabase, releaseDatabase } = require('../safety/owned-database.cjs');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const mongoose = require('mongoose');
@@ -43,6 +44,7 @@ const {
   const connection = await mongoose.createConnection(uri.toString()).asPromise();
   try {
     assert.equal((await connection.db.listCollections().toArray()).length, 0);
+    await reserveDatabase(uri.toString());
     const plans = new WeeklyPlansRepository(connection.model(WEEKLY_PLAN_MODEL, weeklyPlanSchema));
     const ledgerModel = connection.model(XP_TRANSACTION_MODEL, xpTransactionSchema),
       dailyModel = connection.model(DAILY_ACTIVITY_MODEL, dailyActivitySchema);
@@ -152,7 +154,7 @@ const {
   } finally {
     assert.equal(connection.name, namespace);
     assert.match(namespace, /^phd_quest_phase5_validation_[a-f0-9]{32}$/);
-    await connection.dropDatabase();
+    await releaseDatabase(uri.toString());
     await connection.close();
   }
 })().catch((error) => {

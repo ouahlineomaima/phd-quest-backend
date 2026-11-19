@@ -1,0 +1,179 @@
+{
+  "fixture": {
+    "plans": 156,
+    "tasks": 3120,
+    "skills": 200,
+    "evidence": 6000,
+    "meetings": 500,
+    "actions": 2500,
+    "focus": 8000,
+    "selectedSkill": "000200000000000000000001"
+  },
+  "node": "v24.22.3",
+  "measurements": {
+    "skillDetail": {
+      "queries": 6,
+      "materialized": 3458,
+      "materializedBytes": 8215200,
+      "payloadBytes": 41490,
+      "responseHash": "1f6bd5214883f315ebbc778b7e09eace3efe739af61fa7c876d9f61ea85dae1c",
+      "medianMs": 353.6,
+      "plans": [
+        {
+          "collection": "skill_tree_state",
+          "examined": 0,
+          "keys": 0,
+          "stages": ["IXSCAN"]
+        },
+        {
+          "collection": "skill_categories",
+          "examined": 5,
+          "keys": 0,
+          "stages": ["SORT", "COLLSCAN"]
+        },
+        {
+          "collection": "research_skills",
+          "examined": 200,
+          "keys": 0,
+          "stages": ["SORT", "COLLSCAN"]
+        },
+        {
+          "collection": "weekly_plans",
+          "examined": 156,
+          "keys": 0,
+          "stages": ["COLLSCAN"]
+        },
+        {
+          "collection": "goals",
+          "examined": 120,
+          "keys": 0,
+          "stages": ["COLLSCAN"]
+        },
+        {
+          "collection": "roadmap_levels",
+          "examined": 13,
+          "keys": 0,
+          "stages": ["COLLSCAN"]
+        }
+      ]
+    },
+    "skillSummary": {
+      "queries": 6,
+      "materialized": 3458,
+      "materializedBytes": 8215200,
+      "payloadBytes": 638,
+      "responseHash": "0c220232af7eaaf1aaaeb186835e24d4a62e51d8f9de2bfdea9071024bc30d66",
+      "medianMs": 194.91,
+      "plans": [
+        {
+          "collection": "skill_tree_state",
+          "examined": 0,
+          "keys": 0,
+          "stages": ["IXSCAN"]
+        },
+        {
+          "collection": "skill_categories",
+          "examined": 5,
+          "keys": 0,
+          "stages": ["SORT", "COLLSCAN"]
+        },
+        {
+          "collection": "research_skills",
+          "examined": 200,
+          "keys": 0,
+          "stages": ["SORT", "COLLSCAN"]
+        },
+        {
+          "collection": "weekly_plans",
+          "examined": 156,
+          "keys": 0,
+          "stages": ["COLLSCAN"]
+        },
+        {
+          "collection": "goals",
+          "examined": 120,
+          "keys": 0,
+          "stages": ["COLLSCAN"]
+        },
+        {
+          "collection": "roadmap_levels",
+          "examined": 13,
+          "keys": 0,
+          "stages": ["COLLSCAN"]
+        }
+      ]
+    },
+    "meetingActions": {
+      "queries": 5,
+      "materialized": 1324,
+      "materializedBytes": 2234371,
+      "payloadBytes": 248705,
+      "responseHash": "a5308f2212c6489aa27136132eeee9f412ce6631b5e20e49677029c43508d12f",
+      "medianMs": 278.1,
+      "plans": [
+        {
+          "collection": "supervisor_meetings",
+          "examined": 437,
+          "keys": 437,
+          "stages": ["SORT", "FETCH", "IXSCAN"]
+        },
+        {
+          "collection": "supervisors",
+          "examined": 1,
+          "keys": 1,
+          "stages": ["IXSCAN"]
+        },
+        {
+          "collection": "goals",
+          "examined": 105,
+          "keys": 119,
+          "stages": ["FETCH", "IXSCAN"]
+        },
+        {
+          "collection": "roadmap_levels",
+          "examined": 1,
+          "keys": 1,
+          "stages": ["FETCH", "IXSCAN"]
+        },
+        {
+          "collection": "weekly_plans",
+          "examined": 156,
+          "keys": 156,
+          "stages": ["FETCH", "IXSCAN"]
+        }
+      ]
+    },
+    "meetingSummary": {
+      "queries": 1,
+      "materialized": 437,
+      "materializedBytes": 2115790,
+      "payloadBytes": 290,
+      "responseHash": "964fb98c8093ab3fa1d47ec49d6e26f4b5a5cd69021674ce61379b3747099fa3",
+      "medianMs": 58.03,
+      "plans": [
+        {
+          "collection": "supervisor_meetings",
+          "examined": 437,
+          "keys": 437,
+          "stages": ["SORT", "FETCH", "IXSCAN"]
+        }
+      ]
+    },
+    "focusSummary": {
+      "queries": 1,
+      "materialized": 8000,
+      "materializedBytes": 905359,
+      "payloadBytes": 165,
+      "responseHash": "06ef4431241496fd79098e78f9362771f713ce94ea7d06199d6b9d4372fc2752",
+      "medianMs": 798.4,
+      "plans": [
+        {
+          "collection": "focus_sessions",
+          "examined": 8000,
+          "keys": 0,
+          "stages": ["COLLSCAN"]
+        }
+      ]
+    }
+  }
+}

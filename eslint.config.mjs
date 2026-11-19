@@ -7,7 +7,7 @@ const scope = JSON.parse(readFileSync(new URL('./quality-scope.json', import.met
 export default defineConfig([
   { ignores: ['node_modules/**', 'dist/**', '.artifacts/**', 'out-tsc/**'] },
   {
-    files: ['test/stage3/browser.check.cjs'],
+    files: ['test/stage3/browser.check.cjs', 'test/stage4/browser-workflow.cjs'],
     languageOptions: {
       globals: { document: 'readonly', innerWidth: 'readonly', getComputedStyle: 'readonly' },
     },

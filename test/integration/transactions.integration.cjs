@@ -1,3 +1,4 @@
+const { reserveDatabase, releaseDatabase } = require('../safety/owned-database.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
@@ -16,12 +17,16 @@ test('rs0 supports atomic multi-collection rollback and commit', { timeout: 3000
     connectionErrorFactory,
     ...driverOptions
   } = options;
-  const connection = await mongoose.createConnection(uri, driverOptions).asPromise();
-  const database = connection.useDb('_foundation_validation');
+  const target = new URL(uri);
+  target.pathname = '/phd_quest_stage4_' + randomUUID().replaceAll('-', '');
+  await reserveDatabase(target.toString());
+  const connection = await mongoose.createConnection(target.toString(), driverOptions).asPromise();
+  const database = connection;
   const suffix = randomUUID().replaceAll('-', '');
   const names = [`phase2_first_${suffix}`, `phase2_second_${suffix}`];
   const session = await connection.startSession();
   try {
+    assert.equal(connection.name, target.pathname.slice(1));
     const first = await database.db.createCollection(names[0]);
     const second = await database.db.createCollection(names[1]);
     await assert.rejects(
@@ -50,6 +55,7 @@ test('rs0 supports atomic multi-collection rollback and commit', { timeout: 3000
         });
     } finally {
       await connection.close();
+      await releaseDatabase(target.toString());
     }
   }
 });

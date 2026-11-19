@@ -1,13 +1,13 @@
+const { isolated } = require('../safety/isolated.cjs');
+const { randomUUID } = require('node:crypto');
 const assert = require('node:assert/strict');
-const mongoose = require('mongoose');
 const { calendarDates } = require('../../dist/common/calendar');
 (async () => {
-  const base = process.env.PROGRESS_TEST_BASE_URL;
-  assert.ok(base, 'Set the isolated test API URL');
-  assert.notEqual(new URL(base).port, '3000');
-  const uri = process.env.PROGRESS_TEST_DB_URI;
-  assert.match(new URL(uri).pathname, /^\/phd_quest_phase5_validation_[a-f0-9]{32}$/);
-  const connection = await mongoose.createConnection(uri).asPromise();
+  const uri = new URL(process.env.MONGODB_URI);
+  uri.pathname = '/phd_quest_stage4_' + randomUUID().replaceAll('-', '');
+  const own = await isolated(uri.toString());
+  const base = own.base,
+    connection = own.connection;
   try {
     assert.equal(
       await connection.db.collection('weekly_plans').countDocuments(),
@@ -89,7 +89,7 @@ const { calendarDates } = require('../../dist/common/calendar');
       'PASS: isolated API import/complete/repeat/concurrency/reopen/recomplete/zero-XP, strict input, live summary and persisted activity.',
     );
   } finally {
-    await connection.close();
+    await own.cleanup();
   }
 })().catch((error) => {
   console.error(error);

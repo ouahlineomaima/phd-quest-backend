@@ -1,6 +1,6 @@
+const { reserveDatabase, releaseDatabase } = require('../safety/owned-database.cjs');
 const assert = require('node:assert/strict'),
-  { randomUUID } = require('node:crypto'),
-  mongoose = require('mongoose');
+  { randomUUID } = require('node:crypto');
 require('reflect-metadata');
 const { NestFactory } = require('@nestjs/core'),
   { Module } = require('@nestjs/common'),
@@ -9,6 +9,7 @@ const { DatabaseModule } = require('../../dist/database/database.module'),
   { BackupModule } = require('../../dist/modules/backup/backup.module'),
   { validateEnvironment } = require('../../dist/config/environment');
 const createOwned = async (uri) => {
+  await reserveDatabase(uri);
   class Owned {}
   Module({
     imports: [
@@ -274,10 +275,7 @@ let source, target;
     if (target) await target.close();
     for (let i = 0; i < names.length; i++) {
       assert.match(names[i], /^phd_quest_links_validation_[a-f0-9]{32}$/);
-      const db = await mongoose.createConnection(uris[i]).asPromise();
-      assert.equal(db.name, names[i]);
-      await db.dropDatabase();
-      await db.close();
+      await releaseDatabase(uris[i]);
     }
   }
 })().catch((e) => {

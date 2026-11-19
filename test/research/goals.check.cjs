@@ -1,3 +1,4 @@
+const { reserveDatabase, releaseDatabase } = require('../safety/owned-database.cjs');
 const assert = require('node:assert/strict'),
   { randomUUID } = require('node:crypto'),
   mongoose = require('mongoose');
@@ -15,6 +16,7 @@ const { GoalsService } = require('../../dist/modules/goals/business/services/goa
   try {
     assert.equal(connection.name, namespace);
     assert.equal((await connection.db.listCollections().toArray()).length, 0);
+    await reserveDatabase(uri.toString());
     verified = true;
     const model = connection.model('Goal', goalSchema),
       repository = new GoalsRepository(model, connection);
@@ -63,7 +65,7 @@ const { GoalsService } = require('../../dist/modules/goals/business/services/goa
   } finally {
     assert.equal(connection.name, namespace);
     assert.match(namespace, /^phd_quest_phase6_validation_[a-f0-9]{32}$/);
-    if (verified) await connection.dropDatabase();
+    if (verified) await releaseDatabase(uri.toString());
     await connection.close();
   }
 })().catch((e) => {

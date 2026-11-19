@@ -4,7 +4,7 @@ const assert = require('node:assert/strict'),
   http = require('node:http'),
   { randomUUID } = require('node:crypto');
 const { isolated } = require('../safety/isolated.cjs');
-const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH);
+const { launchBrowser } = require('../safety/browser.cjs');
 const frontend = path.resolve(__dirname, '../../../phd-quest-frontend'),
   assets = path.join(frontend, 'dist/phd-quest/browser'),
   artifacts = path.join(frontend, '.artifacts/stage3');
@@ -88,11 +88,7 @@ const pass = (label) => {
         },
         201,
       );
-    browser = await chromium.launch({
-      executablePath:
-        process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
-      headless: true,
-    });
+    browser = await launchBrowser();
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }),
       page = await context.newPage(),
       errors = [];

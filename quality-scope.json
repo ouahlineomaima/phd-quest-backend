@@ -1,6 +1,9 @@
 {
   "typescript": [
-    "src/common/{api-exception.filter,request-logging,request-context,safe-error-diagnostic,configure-api}.ts"
+    "src/common/{api-exception.filter,request-logging,request-context,safe-error-diagnostic,configure-api}.ts",
+    "src/modules/research-skills/{business/services/research-skills.service,persistence/repositories/skills.repository}.ts",
+    "src/modules/supervisor-meetings/{business/services/meetings.service,persistence/repositories/meetings.repository}.ts",
+    "src/modules/focus-sessions/{business/services/focus-sessions.service,persistence/repositories/focus-sessions.repository}.ts"
   ],
   "templates": [],
   "javascript": [
@@ -8,7 +11,11 @@
     "test/stage3/*.test.cjs",
     "test/unit/logging.test.cjs",
     "test/stage3/browser.check.cjs",
-    "eslint.config.mjs"
+    "eslint.config.mjs",
+    "scripts/verify.mjs",
+    "scripts/runtime.cjs",
+    "test/safety/{isolated,owned-database,browser}.cjs",
+    "test/stage4/*.cjs"
   ],
   "format": [
     "src/**/*.{ts,html,css,scss,json}",
@@ -17,6 +24,7 @@
     "docs/**/*.{md,json,yml,yaml}",
     "infra/**/*.{js,cjs,mjs,json,md,yml,yaml}",
     "*.{ts,js,cjs,mjs,json,md,yml,yaml}",
-    ".prettierrc.json"
+    ".prettierrc.json",
+    ".github/workflows/*.{yml,yaml}"
   ]
 }

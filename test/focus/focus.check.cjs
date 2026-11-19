@@ -1,3 +1,4 @@
+const { reserveDatabase, releaseDatabase } = require('../safety/owned-database.cjs');
 // All mutations and database drops are restricted to the two random namespaces owned here.
 const assert = require('node:assert/strict'),
   { randomUUID } = require('node:crypto'),
@@ -37,6 +38,7 @@ const names = Array.from(
   });
 let source, target;
 const create = async (uri) => {
+  await reserveDatabase(uri);
   class Owned {}
   Module({
     imports: [
@@ -335,10 +337,7 @@ const create = async (uri) => {
     if (target) await target.close();
     for (let index = 0; index < names.length; index++) {
       assert.match(names[index], /^phd_quest_focus_validation_[a-f0-9]{32}$/);
-      const db = await mongoose.createConnection(uris[index]).asPromise();
-      assert.equal(db.name, names[index]);
-      await db.dropDatabase();
-      await db.close();
+      await releaseDatabase(uris[index]);
     }
   }
 })().catch((error) => {

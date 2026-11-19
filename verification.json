@@ -1,0 +1,139 @@
+{
+  "build": ["node_modules/@nestjs/cli/bin/nest.js", "build"],
+  "buildForTests": true,
+  "full": ["build", "lint", "format", "unit", "integration", "performance", "browser"],
+  "databaseGroups": ["integration", "performance", "browser"],
+  "databaseSuites": [
+    "meetings",
+    "skills",
+    "safety",
+    "stage2",
+    "stage3",
+    "smoke",
+    "transactions",
+    "browser-stage2",
+    "browser-stage3",
+    "browser-meetings",
+    "browser-skills",
+    "focus",
+    "backup",
+    "roadmap",
+    "goals",
+    "achievements",
+    "research"
+  ],
+  "groups": {
+    "unit": {
+      "tests": [
+        "test/unit/*.test.cjs",
+        "test/http/*.test.cjs",
+        "test/plans/*.test.cjs",
+        "test/progress/*.test.cjs",
+        "test/meetings/time.test.cjs",
+        "test/research/dashboard.test.cjs",
+        "test/contracts/*.test.cjs",
+        "test/stage3/diagnostics.test.cjs",
+        "test/stage4/*.test.cjs"
+      ]
+    },
+    "integration": {
+      "tests": [
+        "test/integration/*.integration.cjs",
+        "test/meetings/meetings.check.cjs",
+        "test/skills/*.test.cjs",
+        "test/safety/stage1.test.cjs",
+        "test/safety/stage2.test.cjs",
+        "test/safety/smoke-cleanup.test.cjs",
+        "test/stage3/compatibility.test.cjs",
+        "test/stage4/*.integration.cjs"
+      ],
+      "commands": [
+        ["test/focus/focus.check.cjs"],
+        ["test/backup/restore.check.cjs"],
+        ["test/progress/transactions.check.cjs"],
+        ["test/progress/api.check.cjs"],
+        ["test/research/goals.check.cjs"],
+        ["test/research/roadmap.check.cjs"],
+        ["test/research/achievements.check.cjs"],
+        ["test/research/roadmap-import.check.cjs"],
+        ["test/research/preparation-camp.check.cjs"],
+        ["test/research/connected-progress.check.cjs"],
+        ["test/research/api.check.cjs"],
+        ["test/plans/api.smoke.cjs", "--isolated"]
+      ]
+    },
+    "performance": {
+      "commands": [["test/stage4/performance.check.cjs"]]
+    },
+    "browser": {
+      "commands": [["test/stage4/browser.check.cjs"]]
+    }
+  },
+  "suites": {
+    "plans": {
+      "tests": ["test/plans/*.test.cjs"]
+    },
+    "progress": {
+      "tests": ["test/progress/*.test.cjs"]
+    },
+    "meetings": {
+      "tests": ["test/meetings/time.test.cjs", "test/meetings/meetings.check.cjs"]
+    },
+    "skills": {
+      "tests": ["test/skills/*.test.cjs"]
+    },
+    "safety": {
+      "tests": ["test/safety/stage1.test.cjs", "test/safety/smoke-cleanup.test.cjs"]
+    },
+    "stage2": {
+      "tests": ["test/safety/stage2.test.cjs", "test/contracts/*.test.cjs"]
+    },
+    "stage3": {
+      "tests": ["test/stage3/*.test.cjs"]
+    },
+    "smoke": {
+      "commands": [["test/plans/api.smoke.cjs", "--isolated"]]
+    },
+    "transactions": {
+      "commands": [["test/progress/transactions.check.cjs"]]
+    },
+    "browser-stage2": {
+      "commands": [["test/safety/stage2-browser.check.cjs"]]
+    },
+    "browser-stage3": {
+      "commands": [["test/stage3/browser.check.cjs"]]
+    },
+    "browser-meetings": {
+      "commands": [["test/meetings/browser.check.cjs"]]
+    },
+    "browser-skills": {
+      "commands": [["test/skills/browser.check.cjs"]]
+    },
+    "focus": {
+      "commands": [["test/focus/focus.check.cjs"]]
+    },
+    "backup": {
+      "commands": [["test/backup/restore.check.cjs"]]
+    },
+    "roadmap": {
+      "commands": [
+        ["test/research/roadmap.check.cjs"],
+        ["test/research/roadmap-import.check.cjs"],
+        ["test/research/preparation-camp.check.cjs"]
+      ]
+    },
+    "goals": {
+      "commands": [
+        ["test/research/goals.check.cjs"],
+        ["test/research/connected-progress.check.cjs"]
+      ]
+    },
+    "achievements": {
+      "commands": [["test/research/achievements.check.cjs"]]
+    },
+    "research": {
+      "commands": [["test/research/api.check.cjs"]]
+    }
+  },
+  "frontendBuild": "../../phd-quest-frontend/dist/phd-quest/browser/index.html"
+}

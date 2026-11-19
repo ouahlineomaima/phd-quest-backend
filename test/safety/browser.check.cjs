@@ -5,7 +5,7 @@ const assert = require('node:assert/strict'),
   http = require('node:http'),
   { randomUUID } = require('node:crypto');
 const { isolated } = require('./isolated.cjs'),
-  { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH);
+  { launchBrowser } = require('../safety/browser.cjs');
 const frontend = path.resolve(__dirname, '../../../phd-quest-frontend'),
   assets = path.join(frontend, 'dist/phd-quest/browser'),
   artifacts = path.join(frontend, '.artifacts/stage1');
@@ -95,11 +95,7 @@ const pass = (label) => {
         undefined,
         201,
       );
-    browser = await chromium.launch({
-      executablePath:
-        process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
-      headless: true,
-    });
+    browser = await launchBrowser();
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }),
       a = await context.newPage(),
       b = await context.newPage(),
@@ -441,6 +437,14 @@ const pass = (label) => {
         'Browser navigation is read-only; explicit achievement check unlocks eligible legacy awards without XP',
       );
     }
+    if (process.env.STAGE4_BROWSER === '1')
+      await require('../stage4/browser-workflow.cjs')({
+        page: b,
+        origin,
+        pass,
+        call,
+        skillId: skill.id,
+      });
     assert.deepEqual(errors, []);
     fs.writeFileSync(
       path.join(artifacts, 'results.json'),

@@ -1,9 +1,8 @@
 ﻿// Creates its own API and verifies an empty, explicitly named UUID database before any write.
 const assert = require('node:assert/strict');
-const mongoose = require('mongoose');
-const { randomUUID } = require('node:crypto');
+const { reserveDatabase, releaseDatabase } = require('./owned-database.cjs');
 require('reflect-metadata');
-const pattern = /^phd_quest_(smoke|stage1|stage2)_[a-f0-9]{32}$/;
+const pattern = /^phd_quest_(smoke|stage1|stage2|stage3|stage4)_[a-f0-9]{32}$/;
 function target(uri, api) {
   if (api)
     throw new Error(
@@ -26,34 +25,14 @@ function target(uri, api) {
   return name;
 }
 async function isolated(uri, extra = {}) {
-  const name = target(uri),
-    owner = randomUUID();
-  const probe = await mongoose.createConnection(uri).asPromise();
-  assert.equal(probe.name, name);
-  try {
-    assert.equal(
-      (await probe.db.listCollections().toArray()).length,
-      0,
-      'Disposable target must be empty; refusing existing records',
-    );
-    await probe.collection('_test_owner').insertOne({ _id: owner });
-  } finally {
-    await probe.close();
-  }
+  const name = target(uri);
+  await reserveDatabase(uri);
   let app;
   async function cleanup() {
-    if (app) await app.close();
-    target(uri);
-    const db = await mongoose.createConnection(uri).asPromise();
     try {
-      assert.equal(db.name, name);
-      assert.ok(
-        await db.collection('_test_owner').findOne({ _id: owner }),
-        'Ownership proof required for cleanup',
-      );
-      await db.dropDatabase();
+      if (app) await app.close();
     } finally {
-      await db.close();
+      await releaseDatabase(uri);
     }
   }
   try {

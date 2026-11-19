@@ -1,7 +1,11 @@
+const {
+  reserveDatabase,
+  releaseDatabase,
+  verifyOwnedDatabase,
+} = require('../safety/owned-database.cjs');
 // Destructive checks use only the two random databases created by this script.
 const assert = require('node:assert/strict'),
-  { randomUUID } = require('node:crypto'),
-  mongoose = require('mongoose');
+  { randomUUID } = require('node:crypto');
 require('reflect-metadata');
 const { NestFactory } = require('@nestjs/core'),
   { Module } = require('@nestjs/common'),
@@ -9,7 +13,11 @@ const { NestFactory } = require('@nestjs/core'),
 const { DatabaseModule } = require('../../dist/database/database.module'),
   { BackupModule } = require('../../dist/modules/backup/backup.module'),
   { validateEnvironment } = require('../../dist/config/environment');
-const createOwned = async (uri) => {
+const createOwned = async (uri, restartAfter) => {
+  if (restartAfter) {
+    await restartAfter.close();
+    await verifyOwnedDatabase(uri);
+  } else await reserveDatabase(uri);
   class OwnedApplication {}
   Module({
     imports: [
@@ -275,8 +283,7 @@ const confirm = (roadmap, p) => ({
       confirmation: 'REPLACE ALL DATA',
     });
     assert.deepEqual((await targetBackup.export()).data, oldBackup.data);
-    await source.close();
-    source = await createOwned(uris[0]);
+    source = await createOwned(uris[0], source);
     assert.deepEqual((await source.get(Backup).export()).data, newBackup.data);
     console.log(
       'PASS roadmap import: normalized preview/digest, 19 invalid/oversized cases, confirmation, edit/checkpoint/completion/backup conflicts, concurrent/repeated import, injected rollback, unchanged non-roadmap data, historical achievements, old/new v1 backups, progression and restart persistence.',
@@ -286,10 +293,7 @@ const confirm = (roadmap, p) => ({
     if (target) await target.close();
     for (let i = 0; i < names.length; i++) {
       assert.match(names[i], /^phd_quest_roadmap_validation_[a-f0-9]{32}$/);
-      const db = await mongoose.createConnection(uris[i]).asPromise();
-      assert.equal(db.name, names[i]);
-      await db.dropDatabase();
-      await db.close();
+      await releaseDatabase(uris[i]);
     }
   }
 })().catch((e) => {

@@ -1,3 +1,4 @@
+const { reserveDatabase, releaseDatabase } = require('../safety/owned-database.cjs');
 // All writes, replacements and drops are confined to these two owned random databases.
 const { test } = require('node:test'),
   assert = require('node:assert/strict'),
@@ -40,6 +41,7 @@ const uris = names.map((name) => {
   return uri.toString();
 });
 async function create(uri, index) {
+  await reserveDatabase(uri);
   class Owned {}
   Module({
     imports: [
@@ -571,10 +573,7 @@ test('Supervisor Meeting Tracker: isolated API, relationships, history and atomi
     if (target) await target.close();
     for (let i = 0; i < names.length; i++) {
       assert.match(names[i], /^phd_quest_meetings_validation_[a-f0-9]{32}$/);
-      const db = await mongoose.createConnection(uris[i]).asPromise();
-      assert.equal(db.name, names[i]);
-      await db.dropDatabase();
-      await db.close();
+      await releaseDatabase(uris[i]);
     }
   }
 });

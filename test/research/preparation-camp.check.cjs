@@ -1,3 +1,8 @@
+const {
+  reserveDatabase,
+  releaseDatabase,
+  verifyOwnedDatabase,
+} = require('../safety/owned-database.cjs');
 // Every mutation targets only the random database owned by this check.
 const assert = require('node:assert/strict'),
   { randomUUID } = require('node:crypto'),
@@ -29,7 +34,11 @@ const namespace = 'phd_quest_camp_validation_' + randomUUID().replaceAll('-', ''
   uri = new URL(process.env.MONGODB_URI);
 uri.pathname = '/' + namespace;
 let app;
-const create = async () => {
+const create = async (restartAfter) => {
+  if (restartAfter) {
+    await restartAfter.close();
+    await verifyOwnedDatabase(uri.toString());
+  } else await reserveDatabase(uri.toString());
   class Owned {}
   Module({
     imports: [
@@ -319,8 +328,7 @@ const create = async () => {
     });
     assert.deepEqual((await backup.export()).data, yearBackup.data);
     const saved = (await backup.export()).data;
-    await app.close();
-    app = await create();
+    app = await create(app);
     assert.deepEqual((await app.get(Backup).export()).data, saved);
     console.log(
       'PASS Preparation Camp: single current chapter, manual gate/unlock, concurrent completion, validated title/description edits, preserved checkpoint identity/history, goal links, new/legacy backup restore, additive migration, resumed advanced work, imports, year-title HTTP validation, unchanged research work, year-title backup round-trip and restart persistence.',
@@ -328,10 +336,7 @@ const create = async () => {
   } finally {
     if (app) await app.close();
     assert.match(namespace, /^phd_quest_camp_validation_[a-f0-9]{32}$/);
-    const db = await mongoose.createConnection(uri.toString()).asPromise();
-    assert.equal(db.name, namespace);
-    await db.dropDatabase();
-    await db.close();
+    await releaseDatabase(uri.toString());
   }
 })().catch((e) => {
   console.error(e);
