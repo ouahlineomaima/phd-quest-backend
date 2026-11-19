@@ -1,6 +1,7 @@
-﻿import { Injectable, OnModuleInit, ConflictException } from '@nestjs/common';
+import { MeetingStatus, MeetingActionStatus, MeetingActionPhase } from '../enums/meeting.enums';
+import { Injectable, OnModuleInit, ConflictException } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Connection, Model, mongo, FilterQuery } from 'mongoose';
+import { ClientSession, Connection, Model, mongo, FilterQuery, Types } from 'mongoose';
 import { MEETING_MODEL, SUPERVISOR_MODEL } from '../models/meeting.model';
 import { MeetingRecord, SupervisorRecord } from '../interfaces/meeting.interface';
 import { GoalRecord } from '../../../goals/persistence/interfaces/goal.interface';
@@ -13,6 +14,10 @@ export type SupervisorChanges = Partial<
 >;
 export type MeetingChanges = Partial<
   Omit<MeetingRecord, '_id' | 'editVersion' | 'createdAt' | 'updatedAt'>
+>;
+export type MeetingActionsRecord = Pick<
+  MeetingRecord,
+  '_id' | 'title' | 'archivedAt' | 'editVersion' | 'actions'
 >;
 export interface MeetingSelection {
   archived?: string;
@@ -79,6 +84,171 @@ export class MeetingsRepository implements OnModuleInit {
       .session(session)
       .lean()
       .exec();
+  }
+  selectActionMeetings(
+    filter: {
+      archived?: string;
+      meetingId?: string;
+      status?: string;
+      phase?: string;
+      dueDate?: string;
+      due?: string;
+    },
+    today: string,
+    session: ClientSession,
+  ): Promise<MeetingActionsRecord[]> {
+    const conditions: Record<string, unknown>[] = [],
+      expressions: unknown[] = [];
+    if (filter.phase) {
+      conditions.push({ phase: filter.phase });
+      expressions.push({ $eq: ['$$action.phase', filter.phase] });
+    }
+    if (filter.status) {
+      const open = filter.status === 'open';
+      conditions.push({ status: open ? { $ne: MeetingActionStatus.Completed } : filter.status });
+      expressions.push({
+        [open ? '$ne' : '$eq']: [
+          '$$action.status',
+          open ? MeetingActionStatus.Completed : filter.status,
+        ],
+      });
+    }
+    if (filter.dueDate) {
+      conditions.push({ dueDate: filter.dueDate });
+      expressions.push({ $eq: ['$$action.dueDate', filter.dueDate] });
+    }
+    if (filter.due === 'overdue') {
+      conditions.push({
+        dueDate: { $ne: null, $lt: today },
+        status: { $ne: MeetingActionStatus.Completed },
+      });
+      expressions.push({
+        $and: [
+          { $ne: ['$$action.dueDate', null] },
+          { $lt: ['$$action.dueDate', today] },
+          { $ne: ['$$action.status', MeetingActionStatus.Completed] },
+        ],
+      });
+    }
+    if (filter.due === 'today' || filter.due === 'undated') {
+      const date = filter.due === 'today' ? today : null;
+      conditions.push({ dueDate: date });
+      expressions.push({ $eq: ['$$action.dueDate', date] });
+    }
+    return this.meetings
+      .aggregate<MeetingActionsRecord>([
+        {
+          $match: {
+            ...archiveFilter(filter.archived),
+            ...(filter.meetingId ? { _id: new Types.ObjectId(filter.meetingId) } : {}),
+            actions: { $elemMatch: conditions.length ? { $and: conditions } : {} },
+          },
+        },
+        { $sort: { scheduledAt: 1, _id: 1 } },
+        {
+          $project: {
+            title: 1,
+            archivedAt: 1,
+            editVersion: 1,
+            actions: {
+              $filter: {
+                input: '$actions',
+                as: 'action',
+                cond: expressions.length ? { $and: expressions } : true,
+              },
+            },
+          },
+        },
+      ])
+      .session(session)
+      .exec();
+  }
+  async summary(now: Date, today: string, session: ClientSession) {
+    const countActions = (conditions: unknown[]) => ({
+      $size: { $filter: { input: '$actions', as: 'action', cond: { $and: conditions } } },
+    });
+    const open = { $ne: ['$$action.status', MeetingActionStatus.Completed] };
+    const [row] = await this.meetings
+      .aggregate<{
+        counts: {
+          upcoming: number;
+          completed: number;
+          pending: number;
+          preparation: number;
+          followUp: number;
+          overdue: number;
+        }[];
+        next: Pick<MeetingRecord, '_id' | 'title' | 'scheduledAt'>[];
+      }>([
+        { $match: { archivedAt: null } },
+        {
+          $facet: {
+            counts: [
+              {
+                $group: {
+                  _id: null,
+                  upcoming: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $eq: ['$status', MeetingStatus.Scheduled] },
+                            { $gte: ['$scheduledAt', now] },
+                          ],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
+                  completed: {
+                    $sum: { $cond: [{ $eq: ['$status', MeetingStatus.Completed] }, 1, 0] },
+                  },
+                  pending: { $sum: countActions([open]) },
+                  preparation: {
+                    $sum: countActions([
+                      open,
+                      { $eq: ['$$action.phase', MeetingActionPhase.PreMeeting] },
+                    ]),
+                  },
+                  followUp: {
+                    $sum: countActions([
+                      open,
+                      { $eq: ['$$action.phase', MeetingActionPhase.PostMeeting] },
+                    ]),
+                  },
+                  overdue: {
+                    $sum: countActions([
+                      open,
+                      { $ne: ['$$action.dueDate', null] },
+                      { $lt: ['$$action.dueDate', today] },
+                    ]),
+                  },
+                },
+              },
+            ],
+            next: [
+              { $match: { status: MeetingStatus.Scheduled, scheduledAt: { $gte: now } } },
+              { $sort: { scheduledAt: 1, _id: 1 } },
+              { $limit: 1 },
+              { $project: { title: 1, scheduledAt: 1 } },
+            ],
+          },
+        },
+      ])
+      .session(session)
+      .exec();
+    return {
+      counts: {
+        upcoming: row?.counts[0]?.upcoming ?? 0,
+        completed: row?.counts[0]?.completed ?? 0,
+        pending: row?.counts[0]?.pending ?? 0,
+        preparation: row?.counts[0]?.preparation ?? 0,
+        followUp: row?.counts[0]?.followUp ?? 0,
+        overdue: row?.counts[0]?.overdue ?? 0,
+      },
+      next: row?.next[0] ?? null,
+    };
   }
   async createSupervisor(
     fields: SupervisorChanges,

@@ -13,8 +13,9 @@ import {
   SkillRecord,
   StateRecord,
   ProficiencyChange,
+  Association,
 } from '../interfaces/skill.interface';
-import { SkillSourceType, SKILL_STATE_ID } from '../enums/skill.enums';
+import { SkillSourceType, SkillLevel, SKILL_STATE_ID } from '../enums/skill.enums';
 import { GoalRecord } from '../../../goals/persistence/interfaces/goal.interface';
 import { RoadmapLevel } from '../../../roadmap/persistence/interfaces/roadmap.interface';
 import { captureCheckpointIdentity } from '../../../roadmap/persistence/repositories/checkpoint-references';
@@ -87,6 +88,120 @@ export class SkillsRepository implements OnModuleInit {
   skill(id: string, session: ClientSession): Promise<SkillRecord | null> {
     return this.skills.findById(id).session(session).lean().exec();
   }
+  categoriesByIds(ids: string[], session: ClientSession): Promise<CategoryRecord[]> {
+    return this.categories
+      .find({ _id: { $in: ids.filter((id) => Types.ObjectId.isValid(id)) } })
+      .session(session)
+      .lean()
+      .exec();
+  }
+  prerequisites(
+    ids: string[],
+    session: ClientSession,
+  ): Promise<Pick<SkillRecord, '_id' | 'name' | 'proficiency' | 'archivedAt'>[]> {
+    return this.skills
+      .find(
+        { _id: { $in: ids.filter((id) => Types.ObjectId.isValid(id)) } },
+        { name: 1, proficiency: 1, archivedAt: 1 },
+      )
+      .session(session)
+      .lean()
+      .exec();
+  }
+  async summary(session: ClientSession) {
+    const [result] = await this.skills
+      .aggregate<{
+        counts: { totalActive: number; inDevelopment: number; advanced: number }[];
+        recentlyImproved: { id: string; name: string; proficiency: SkillLevel; at: Date }[];
+      }>([
+        { $match: { archivedAt: null } },
+        {
+          $project: {
+            name: 1,
+            proficiency: 1,
+            sortOrder: 1,
+            categoryObjectId: {
+              $convert: { input: '$categoryId', to: 'objectId', onError: null, onNull: null },
+            },
+            lastImprovement: {
+              $arrayElemAt: [
+                {
+                  $filter: {
+                    input: '$proficiencyHistory',
+                    as: 'h',
+                    cond: { $gt: ['$$h.toLevel', '$$h.fromLevel'] },
+                  },
+                },
+                -1,
+              ],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: 'skill_categories',
+            localField: 'categoryObjectId',
+            foreignField: '_id',
+            pipeline: [{ $project: { archivedAt: 1 } }],
+            as: 'category',
+          },
+        },
+        { $unwind: '$category' },
+        { $match: { 'category.archivedAt': null } },
+        {
+          $facet: {
+            counts: [
+              {
+                $group: {
+                  _id: null,
+                  totalActive: { $sum: 1 },
+                  inDevelopment: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $gte: ['$proficiency', SkillLevel.Beginner] },
+                            { $lt: ['$proficiency', SkillLevel.Advanced] },
+                          ],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
+                  advanced: {
+                    $sum: { $cond: [{ $eq: ['$proficiency', SkillLevel.Advanced] }, 1, 0] },
+                  },
+                },
+              },
+            ],
+            recentlyImproved: [
+              { $match: { lastImprovement: { $exists: true } } },
+              { $sort: { 'lastImprovement.changedAt': -1, sortOrder: 1, _id: 1 } },
+              { $limit: 5 },
+              {
+                $project: {
+                  _id: 0,
+                  id: { $toString: '$_id' },
+                  name: 1,
+                  proficiency: '$lastImprovement.toLevel',
+                  at: '$lastImprovement.changedAt',
+                },
+              },
+            ],
+          },
+        },
+      ])
+      .session(session)
+      .exec();
+    const counts = result?.counts[0];
+    return {
+      totalActive: counts?.totalActive ?? 0,
+      inDevelopment: counts?.inDevelopment ?? 0,
+      advanced: counts?.advanced ?? 0,
+      recentlyImproved: result?.recentlyImproved ?? [],
+    };
+  }
   async createCategory(input: CategoryChanges, session: ClientSession): Promise<CategoryRecord> {
     const [row] = await this.categories.create([input], { session });
     return row.toObject();
@@ -136,32 +251,101 @@ export class SkillsRepository implements OnModuleInit {
     const [number, id] = sourceId.split(':');
     return captureCheckpointIdentity(this.connection, Number(number), id, session);
   }
-  async sources(session: ClientSession): Promise<Map<string, ActivitySource>> {
-    const tasks = await this.connection
-      .collection('weekly_plans')
-      .aggregate<{ sourceId: string; title: string; completed: boolean }>(
-        [
-          { $unwind: '$tasks' },
-          {
-            $project: {
-              _id: 0,
-              sourceId: { $concat: ['$weekId', ':', '$tasks.id'] },
-              title: '$tasks.title',
-              completed: { $eq: ['$tasks.status', TaskStatus.Completed] },
+  async sources(
+    session: ClientSession,
+    links: Association[],
+  ): Promise<Map<string, ActivitySource>> {
+    const taskIds = [
+      ...new Set(
+        links.filter((a) => a.sourceType === SkillSourceType.WeeklyTask).map((a) => a.sourceId),
+      ),
+    ];
+    const goalIds = [
+      ...new Set(
+        links
+          .filter(
+            (a) =>
+              a.sourceType === SkillSourceType.ResearchGoal && Types.ObjectId.isValid(a.sourceId),
+          )
+          .map((a) => a.sourceId),
+      ),
+    ];
+    const refs = links.filter(
+      (a) => a.sourceType === SkillSourceType.RoadmapCheckpoint && a.checkpointIdentity,
+    );
+    const tasks = taskIds.length
+      ? await this.connection
+          .collection('weekly_plans')
+          .aggregate<{ sourceId: string; title: string; completed: boolean }>(
+            [
+              { $match: { weekId: { $in: [...new Set(taskIds.map((id) => id.split(':')[0]))] } } },
+              {
+                $project: {
+                  weekId: 1,
+                  tasks: {
+                    $filter: {
+                      input: '$tasks',
+                      as: 'task',
+                      cond: { $in: [{ $concat: ['$weekId', ':', '$$task.id'] }, taskIds] },
+                    },
+                  },
+                },
+              },
+              { $unwind: '$tasks' },
+              {
+                $project: {
+                  _id: 0,
+                  sourceId: { $concat: ['$weekId', ':', '$tasks.id'] },
+                  title: '$tasks.title',
+                  completed: { $eq: ['$tasks.status', TaskStatus.Completed] },
+                },
+              },
+            ],
+            { session },
+          )
+          .toArray()
+      : [];
+    const goals = goalIds.length
+      ? await this.connection
+          .collection<GoalRecord>('goals')
+          .find(
+            { _id: { $in: goalIds.map((id) => new Types.ObjectId(id)) } },
+            { session, projection: { title: 1, status: 1, completedAt: 1 } },
+          )
+          .toArray()
+      : [];
+    const levels = refs.length
+      ? await this.connection
+          .collection<RoadmapLevel>('roadmap_levels')
+          .find(
+            {
+              levelNumber: {
+                $in: [...new Set(refs.map((ref) => Number(ref.sourceId.split(':')[0])))],
+              },
             },
-          },
-        ],
-        { session },
-      )
-      .toArray();
-    const goals = await this.connection
-      .collection<GoalRecord>('goals')
-      .find({}, { session, projection: { title: 1, status: 1, completedAt: 1 } })
-      .toArray();
-    const levels = await this.connection
-      .collection<RoadmapLevel>('roadmap_levels')
-      .find({}, { session, projection: { levelNumber: 1, checkpoints: 1 } })
-      .toArray();
+            {
+              session,
+              projection: {
+                levelNumber: 1,
+                checkpoints: {
+                  $filter: {
+                    input: '$checkpoints',
+                    as: 'c',
+                    cond: {
+                      $or: refs.map((ref) => ({
+                        $and: [
+                          { $eq: ['$$c.id', ref.sourceId.split(':')[1]] },
+                          { $eq: ['$$c.checkpointIdentity', ref.checkpointIdentity] },
+                        ],
+                      })),
+                    },
+                  },
+                },
+              },
+            },
+          )
+          .toArray()
+      : [];
     return new Map<string, ActivitySource>([
       ...tasks.map(
         (t) =>

@@ -53,21 +53,18 @@ export class FocusSessionsService {
     return this.connection.transaction(
       async (session) => {
         const today = this.clock.dateAt(this.clock.now()),
-          week = sundayWeek(today),
-          days = await this.repository.days(this.clock.timezone, session);
-        const seconds = (test: (date: string) => boolean) =>
-          days.filter((day) => test(day._id)).reduce((sum, day) => sum + day.seconds, 0);
+          week = sundayWeek(today);
         return {
           timezone: this.clock.timezone,
           today,
           weekId: week.weekId,
-          todayMinutes: Math.floor(seconds((date) => date === today) / 60),
-          weekMinutes: Math.floor(
-            seconds((date) => date >= week.startDate && date <= week.endDate) / 60,
-          ),
-          overallMinutes: Math.floor(seconds(() => true) / 60),
-          sessionCount: days.reduce((sum, day) => sum + day.count, 0),
-          completedCountdowns: days.reduce((sum, day) => sum + day.countdowns, 0),
+          ...(await this.repository.summary(
+            this.clock.timezone,
+            today,
+            week.startDate,
+            week.endDate,
+            session,
+          )),
         };
       },
       { readConcern: { level: 'snapshot' } },

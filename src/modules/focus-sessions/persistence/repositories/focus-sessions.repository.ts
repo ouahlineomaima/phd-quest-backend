@@ -71,25 +71,69 @@ export class FocusSessionsRepository implements OnModuleInit {
       .session(session)
       .exec();
   }
-  async days(timezone: string, session: ClientSession) {
-    // Use the same calendar as streaks; MongoDB and Node can ship different timezone tables.
-    const rows = await this.model
-      .find({}, { _id: 0, endedAt: 1, focusedSeconds: 1, mode: 1, completionType: 1 })
+  async summary(
+    timezone: string,
+    today: string,
+    startDate: string,
+    endDate: string,
+    session: ClientSession,
+  ) {
+    // Global totals are aggregated in MongoDB. Calendar classification stays in
+    // Node: its IANA data can differ from the database server's timezone tables.
+    const [totals] = await this.model
+      .aggregate<{ seconds: number; count: number; countdowns: number }>([
+        {
+          $group: {
+            _id: null,
+            seconds: { $sum: '$focusedSeconds' },
+            count: { $sum: 1 },
+            countdowns: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ['$mode', FocusMode.Countdown] },
+                      { $eq: ['$completionType', FocusCompletion.TargetReached] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ])
       .session(session)
-      .lean();
-    const days = new Map<
-      string,
-      { _id: string; seconds: number; count: number; countdowns: number }
-    >();
+      .exec();
+    // Two days of padding cover all IANA offsets and skipped/repeated local dates.
+    // Exact local-date predicates below remove the padding; no Mongo timezone conversion.
+    const rows = await this.model
+      .find(
+        {
+          endedAt: {
+            $gte: new Date(Date.parse(startDate + 'T00:00:00Z') - 2 * 86400000),
+            $lt: new Date(Date.parse(endDate + 'T00:00:00Z') + 3 * 86400000),
+          },
+        },
+        { _id: 0, endedAt: 1, focusedSeconds: 1 },
+      )
+      .session(session)
+      .lean()
+      .exec();
+    let todaySeconds = 0,
+      weekSeconds = 0;
     for (const row of rows) {
-      const date = localDateAt(row.endedAt, timezone),
-        day = days.get(date) ?? { _id: date, seconds: 0, count: 0, countdowns: 0 };
-      day.seconds += row.focusedSeconds;
-      day.count++;
-      if (row.mode === FocusMode.Countdown && row.completionType === FocusCompletion.TargetReached)
-        day.countdowns++;
-      days.set(date, day);
+      const date = localDateAt(row.endedAt, timezone);
+      if (date === today) todaySeconds += row.focusedSeconds;
+      if (date >= startDate && date <= endDate) weekSeconds += row.focusedSeconds;
     }
-    return [...days.values()];
+    return {
+      todayMinutes: Math.floor(todaySeconds / 60),
+      weekMinutes: Math.floor(weekSeconds / 60),
+      overallMinutes: Math.floor((totals?.seconds ?? 0) / 60),
+      sessionCount: totals?.count ?? 0,
+      completedCountdowns: totals?.countdowns ?? 0,
+    };
   }
 }

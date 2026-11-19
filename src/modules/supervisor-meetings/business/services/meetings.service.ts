@@ -1,3 +1,4 @@
+import { LinkedTaskState } from '../../../goals/persistence/interfaces/goal.interface';
 import { MeetingResponse, MeetingListResponse } from '../../api/dtos/meeting-response.dto';
 import { TaskStatus } from '../../../weekly-plans/persistence/enums/task.enums';
 import {
@@ -10,8 +11,6 @@ import { CheckpointReference } from '../../persistence/interfaces/meeting.interf
 import {
   SupervisorRole,
   MeetingType,
-  MeetingStatus,
-  MeetingActionPhase,
   MeetingActionStatus,
 } from '../../persistence/enums/meeting.enums';
 import { assertEditVersion, editVersion } from '../../../../database/edit-version';
@@ -26,12 +25,11 @@ import { ClientSession, Connection, Types } from 'mongoose';
 import { applicationWrite } from '../../../../database/application-write';
 import { ApplicationClock } from '../../../../common/application-clock';
 import { calendarOrdinal } from '../../../../common/calendar';
-import { MeetingsRepository } from '../../persistence/repositories/meetings.repository';
 import {
-  MeetingAction,
-  MeetingRecord,
-  SupervisorRecord,
-} from '../../persistence/interfaces/meeting.interface';
+  MeetingActionsRecord,
+  MeetingsRepository,
+} from '../../persistence/repositories/meetings.repository';
+import { MeetingAction, MeetingRecord } from '../../persistence/interfaces/meeting.interface';
 import {
   ActionFieldsDto,
   ActionFilterDto,
@@ -58,7 +56,7 @@ export function validTaskReferences(ids: string[]) {
   )
     throw new BadRequestException('Use unique, valid Sunday weekId:taskId references.');
 }
-export function linkedProgress(tasks: { status: string }[], total: number) {
+export function linkedProgress(tasks: { status: TaskStatus }[], total: number) {
   const completed = tasks.filter((t) => t.status === TaskStatus.Completed).length;
   return {
     completed,
@@ -150,7 +148,7 @@ export class MeetingsService {
       assertEditVersion(old, version);
       this.editable(old);
       const row = await this.repository.updateSupervisor(old, defined(input), session);
-      return response(row!);
+      return response(row);
     });
   }
   archiveSupervisor(id: string, version?: string) {
@@ -163,7 +161,7 @@ export class MeetingsService {
         { archivedAt: this.clock.now() },
         session,
       );
-      return response(row!);
+      return response(row);
     });
   }
   private async references(
@@ -215,6 +213,31 @@ export class MeetingsService {
     return refs;
   }
 
+  private actionDetails(row: MeetingActionsRecord, byTask: Map<string, LinkedTaskState>) {
+    return row.actions.map((action) => {
+      const valid = action.linkedTaskIds.flatMap((source) =>
+        byTask.has(source) ? [byTask.get(source)!] : [],
+      );
+      return {
+        ...action,
+        meetingVersion: editVersion(row),
+        meetingId: row._id.toString(),
+        linkedTasks: action.linkedTaskIds.map(
+          (source) =>
+            byTask.get(source) ?? {
+              sourceId: source,
+              weekId: source.split(':')[0],
+              taskId: source.split(':')[1],
+              title: 'Unavailable task',
+              status: null,
+              date: '',
+              missing: true as const,
+            },
+        ),
+        progress: linkedProgress(valid, action.linkedTaskIds.length),
+      };
+    });
+  }
   private async details(rows: MeetingRecord[], session: ClientSession): Promise<MeetingResponse[]> {
     const supervisorIds = [...new Set(rows.flatMap((r) => r.supervisorIds))],
       goalIds = [...new Set(rows.flatMap((r) => r.goalIds))],
@@ -260,29 +283,7 @@ export class MeetingsService {
           missing: !checkpoint,
         };
       }),
-      actions: row.actions.map((action) => {
-        const valid = action.linkedTaskIds.flatMap((source) =>
-          byTask.has(source) ? [byTask.get(source)!] : [],
-        );
-        return {
-          ...action,
-          meetingVersion: editVersion(row),
-          meetingId: row._id.toString(),
-          linkedTasks: action.linkedTaskIds.map(
-            (source) =>
-              byTask.get(source) ?? {
-                sourceId: source,
-                weekId: source.split(':')[0],
-                taskId: source.split(':')[1],
-                title: 'Unavailable task',
-                status: null,
-                date: '',
-                missing: true as const,
-              },
-          ),
-          progress: linkedProgress(valid, action.linkedTaskIds.length),
-        };
-      }),
+      actions: this.actionDetails(row, byTask),
     }));
   }
   list(filter: MeetingFilterDto = {}): Promise<MeetingListResponse> {
@@ -323,7 +324,7 @@ export class MeetingsService {
       const checkpointRefs = await this.references(input, session, old);
       const fields = { ...this.fields(input, old), ...(checkpointRefs ? { checkpointRefs } : {}) };
       const record = await this.repository.updateMeeting(old, fields, session);
-      return (await this.details([record!], session))[0];
+      return (await this.details([record], session))[0];
     });
   }
   status(id: string, status: MeetingRecord['status'], version?: string) {
@@ -332,7 +333,7 @@ export class MeetingsService {
       assertEditVersion(old, version);
       this.editable(old);
       const row = await this.repository.updateMeeting(old, { status }, session);
-      return (await this.details([row!], session))[0];
+      return (await this.details([row], session))[0];
     });
   }
   archive(id: string, version?: string) {
@@ -345,7 +346,7 @@ export class MeetingsService {
         { archivedAt: this.clock.now() },
         session,
       );
-      return response(row!);
+      return response(row);
     });
   }
   action(
@@ -397,40 +398,35 @@ export class MeetingsService {
           ? meeting.actions.map((a) => (a.id === actionId ? newAction : a))
           : [...meeting.actions, newAction];
       const row = await this.repository.updateMeeting(meeting, { actions }, session);
-      return (await this.details([row!], session))[0];
+      return (await this.details([row], session))[0];
     });
   }
   actions(filter: ActionFilterDto = {}) {
     if (filter.dueDate && calendarOrdinal(filter.dueDate) === null)
       throw new BadRequestException('Invalid action due date.');
     return this.read(async (session) => {
-      const rows = await this.repository.selectMeetings(filter, session);
-      const meetings = await this.details(rows, session),
-        today = this.clock.dateAt(this.clock.now());
-      const items = meetings
-        .flatMap((m) =>
-          m.actions.map((a) => ({
-            ...a,
-            meetingTitle: m.title,
-            meetingArchived: !!m.archivedAt,
-            overdue: !!a.dueDate && a.dueDate < today && a.status !== MeetingActionStatus.Completed,
+      const today = this.clock.dateAt(this.clock.now()),
+        rows = await this.repository.selectActionMeetings(filter, today, session),
+        tasks = await this.repository.taskStates(
+          [
+            ...new Set(
+              rows.flatMap((row) => row.actions.flatMap((action) => action.linkedTaskIds)),
+            ),
+          ],
+          session,
+        );
+      const byTask = new Map(tasks.map((task) => [task.sourceId, task]));
+      const items = rows
+        .flatMap((row) =>
+          this.actionDetails(row, byTask).map((action) => ({
+            ...action,
+            meetingTitle: row.title,
+            meetingArchived: !!row.archivedAt,
+            overdue:
+              !!action.dueDate &&
+              action.dueDate < today &&
+              action.status !== MeetingActionStatus.Completed,
           })),
-        )
-        .filter(
-          (a) =>
-            (!filter.phase || a.phase === filter.phase) &&
-            (!filter.status ||
-              (filter.status === 'open'
-                ? a.status !== MeetingActionStatus.Completed
-                : a.status === filter.status)) &&
-            (!filter.dueDate || a.dueDate === filter.dueDate) &&
-            (!filter.due ||
-              filter.due === 'all' ||
-              (filter.due === 'overdue'
-                ? a.overdue
-                : filter.due === 'today'
-                  ? a.dueDate === today
-                  : a.dueDate === null)),
         )
         .sort(
           (a, b) =>
@@ -441,24 +437,14 @@ export class MeetingsService {
   }
   summary() {
     return this.read(async (session) => {
-      const rows = await this.repository.selectMeetings({}, session),
-        now = this.clock.now(),
+      const now = this.clock.now(),
         today = this.clock.dateAt(now),
-        actions = rows.flatMap((r) => r.actions),
-        open = actions.filter((a) => a.status !== MeetingActionStatus.Completed);
-      const upcoming = rows.filter(
-          (r) => r.status === MeetingStatus.Scheduled && r.scheduledAt >= now,
-        ),
-        next = upcoming[0];
+        summary = await this.repository.summary(now, today, session),
+        next = summary.next;
       return {
         timezone: this.clock.timezone,
         today,
-        upcoming: upcoming.length,
-        completed: rows.filter((r) => r.status === MeetingStatus.Completed).length,
-        pending: open.length,
-        preparation: open.filter((a) => a.phase === MeetingActionPhase.PreMeeting).length,
-        followUp: open.filter((a) => a.phase === MeetingActionPhase.PostMeeting).length,
-        overdue: open.filter((a) => a.dueDate && a.dueDate < today).length,
+        ...summary.counts,
         nextMeeting: next
           ? {
               id: next._id.toString(),

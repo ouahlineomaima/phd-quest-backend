@@ -11,10 +11,11 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { ClientSession, Connection, Types } from 'mongoose';
 import { applicationWrite } from '../../../../database/application-write';
 import { ApplicationClock } from '../../../../common/application-clock';
-import { SkillsRepository } from '../../persistence/repositories/skills.repository';
+import { ActivitySource, SkillsRepository } from '../../persistence/repositories/skills.repository';
 import {
   Association,
   SkillRecord,
+  CategoryRecord,
   Evidence,
   ProficiencyChange,
 } from '../../persistence/interfaces/skill.interface';
@@ -68,70 +69,77 @@ export class ResearchSkillsService {
     this.editable(await this.category(row.categoryId, s));
     return row;
   }
+  private present(
+    row: SkillRecord,
+    categories: CategoryRecord[],
+    bySkill: Map<string, Pick<SkillRecord, '_id' | 'name' | 'proficiency' | 'archivedAt'>>,
+    sources: Map<string, ActivitySource>,
+  ): SkillResponse {
+    const associations = row.associations.map((a) => {
+      const source = sources.get(sourceKey(a));
+      const resolution = source
+        ? ('resolved' as const)
+        : a.sourceType === SkillSourceType.RoadmapCheckpoint && !a.checkpointIdentity
+          ? ('unverified' as const)
+          : ('missing' as const);
+      return {
+        ...a,
+        title:
+          source?.title ??
+          (resolution === 'unverified'
+            ? 'Unverified historical checkpoint'
+            : 'Unavailable activity'),
+        resolution,
+        missing: !source,
+        completed: source?.completed ?? false,
+      };
+    });
+    const category = categories.find((c) => c._id.toString() === row.categoryId);
+    return {
+      ...recordResponse(row),
+      effectiveArchived: !!row.archivedAt || !!category?.archivedAt || !category,
+      categoryName: category?.name ?? 'Unavailable category',
+      prerequisites: row.prerequisiteIds.map((id) => {
+        const p = bySkill.get(id);
+        return {
+          id,
+          name: p?.name ?? 'Unavailable prerequisite',
+          proficiency: p?.proficiency ?? null,
+          archivedAt: p?.archivedAt ?? null,
+          missing: !p,
+          developed: !!p && p.proficiency >= SkillLevel.Developing,
+        };
+      }),
+      associations,
+      targeted: TARGET_LEVELS.map((targetLevel) => {
+        const progress = activityGroup(associations.filter((a) => a.targetLevel === targetLevel));
+        return {
+          ...progress,
+          targetLevel,
+          suggestReview: progress.ready && targetLevel > row.proficiency,
+        };
+      }),
+      untargeted: SOURCE_TYPES.map((sourceType) => ({
+        ...activityGroup(
+          associations.filter((a) => a.targetLevel === null && a.sourceType === sourceType),
+        ),
+        sourceType,
+      })),
+    };
+  }
   private async tree(s: ClientSession): Promise<SkillTreeResponse> {
     const state = await this.repository.initialization(s),
       categories = await this.repository.listCategories(s),
       skills = await this.repository.listSkills(s),
-      sources = await this.repository.sources(s),
-      bySkill = new Map(skills.map((r) => [r._id.toString(), r]));
+      sources = await this.repository.sources(
+        s,
+        skills.flatMap((row) => row.associations),
+      );
+    const bySkill = new Map(skills.map((row) => [row._id.toString(), row]));
     return {
       initialized: !!state,
       categories: categories.map((row) => recordResponse(row)),
-      skills: skills.map((row) => {
-        const associations = row.associations.map((a) => {
-          const source = sources.get(sourceKey(a));
-          const resolution = source
-            ? ('resolved' as const)
-            : a.sourceType === SkillSourceType.RoadmapCheckpoint && !a.checkpointIdentity
-              ? ('unverified' as const)
-              : ('missing' as const);
-          return {
-            ...a,
-            title:
-              source?.title ??
-              (resolution === 'unverified'
-                ? 'Unverified historical checkpoint'
-                : 'Unavailable activity'),
-            resolution,
-            missing: !source,
-            completed: source?.completed ?? false,
-          };
-        });
-        const category = categories.find((c) => c._id.toString() === row.categoryId);
-        return {
-          ...recordResponse(row),
-          effectiveArchived: !!row.archivedAt || !!category?.archivedAt || !category,
-          categoryName: category?.name ?? 'Unavailable category',
-          prerequisites: row.prerequisiteIds.map((id) => {
-            const p = bySkill.get(id);
-            return {
-              id,
-              name: p?.name ?? 'Unavailable prerequisite',
-              proficiency: p?.proficiency ?? null,
-              archivedAt: p?.archivedAt ?? null,
-              missing: !p,
-              developed: !!p && p.proficiency >= SkillLevel.Developing,
-            };
-          }),
-          associations,
-          targeted: TARGET_LEVELS.map((targetLevel) => {
-            const progress = activityGroup(
-              associations.filter((a) => a.targetLevel === targetLevel),
-            );
-            return {
-              ...progress,
-              targetLevel,
-              suggestReview: progress.ready && targetLevel > row.proficiency,
-            };
-          }),
-          untargeted: SOURCE_TYPES.map((sourceType) => ({
-            ...activityGroup(
-              associations.filter((a) => a.targetLevel === null && a.sourceType === sourceType),
-            ),
-            sourceType,
-          })),
-        };
-      }),
+      skills: skills.map((row) => this.present(row, categories, bySkill, sources)),
     };
   }
   list(): Promise<SkillTreeResponse> {
@@ -140,33 +148,24 @@ export class ResearchSkillsService {
   detail(id: string): Promise<SkillResponse> {
     this.id(id);
     return this.read(async (s) => {
-      const item = (await this.tree(s)).skills.find((r) => r.id === id);
-      if (!item) throw new NotFoundException('Research skill not found.');
-      return item;
+      const row = await this.repository.skill(id, s);
+      if (!row) throw new NotFoundException('Research skill not found.');
+      const categories = await this.repository.categoriesByIds([row.categoryId], s),
+        prerequisites = await this.repository.prerequisites(row.prerequisiteIds, s),
+        sources = await this.repository.sources(s, row.associations);
+      return this.present(
+        row,
+        categories,
+        new Map(prerequisites.map((item) => [item._id.toString(), item])),
+        sources,
+      );
     });
   }
   summary() {
-    return this.read(async (s) => {
-      const tree = await this.tree(s),
-        active = tree.skills.filter((r) => !r.effectiveArchived);
-      return {
-        initialized: tree.initialized,
-        totalActive: active.length,
-        inDevelopment: active.filter(
-          (r) => r.proficiency >= SkillLevel.Beginner && r.proficiency < SkillLevel.Advanced,
-        ).length,
-        advanced: active.filter((r) => r.proficiency === SkillLevel.Advanced).length,
-        recentlyImproved: active
-          .flatMap((r) =>
-            r.proficiencyHistory
-              .filter((h) => h.toLevel > h.fromLevel)
-              .slice(-1)
-              .map((h) => ({ id: r.id, name: r.name, proficiency: h.toLevel, at: h.changedAt })),
-          )
-          .sort((a, b) => b.at.getTime() - a.at.getTime())
-          .slice(0, 5),
-      };
-    });
+    return this.read(async (s) => ({
+      initialized: !!(await this.repository.initialization(s)),
+      ...(await this.repository.summary(s)),
+    }));
   }
   initialize() {
     return applicationWrite(this.connection, async (s) => {
@@ -279,7 +278,7 @@ export class ResearchSkillsService {
         throw new BadRequestException('The checkpoint was replaced. Reload before linking.');
       link.checkpointIdentity = identity;
     }
-    const sources = await this.repository.sources(s);
+    const sources = await this.repository.sources(s, links);
     for (const link of links)
       if (
         !sources.has(sourceKey(link)) &&
