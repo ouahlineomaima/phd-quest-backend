@@ -23,9 +23,9 @@ Schema version remains 1. `supervisors` and `supervisorMeetings` are optional le
 
 ## Verification
 
-Build with the repository's Node 24 toolchain before tests. `npm run test:meetings` uses `MONGODB_URI` only as a server seed; it creates two random `phd_quest_meetings_validation_*` databases, verifies connection names and restricts cleanup to those namespaces. It covers lifecycle, validation, shared cross-week links, manual status, changing progress, concurrent actions, missing references, old/new backups, invalid-file rejection, stale previews and injected restore rollback. Time tests cover configured timezone conversion and skipped/ambiguous local times.
+Build with the repository's Node 24 toolchain before tests. `npm run test:meetings` requires `TEST_MONGODB_URI` as an explicit test-only server seed; it creates two random `phd_quest_meetings_validation_*` databases, verifies emptiness/connection names before initialization and requires ownership markers before cleanup. It covers lifecycle, validation, shared cross-week links, manual status, changing progress, concurrent actions, missing references, old/new backups, invalid-file rejection, stale previews and injected restore rollback. Time tests cover configured timezone conversion and skipped/ambiguous local times.
 
-`npm run test:meetings:browser` also needs a built sibling frontend, Chrome and `PLAYWRIGHT_CORE_PATH`. It starts a disposable API/database and temporary localhost proxy; screenshots, exported disposable fixtures and results stay in the frontend's ignored `.artifacts/meetings/`. Never point browser tests at the real application origin.
+`npm run test:meetings:browser` also needs a built sibling frontend, an installed Edge/Chrome/Chromium browser and backend npm dependencies. It starts a disposable API/database and temporary localhost proxy; screenshots, exported disposable fixtures and results stay in the frontend's ignored `.artifacts/meetings/`. Never point browser tests at the real application origin.
 
 `test/meetings/fingerprint.cjs` is read-only and outputs collection counts and hashes without research content. No tests remove Docker volumes.
 
@@ -38,3 +38,5 @@ Build with the repository's Node 24 toolchain before tests. `npm run test:meetin
 - The real `phd_quest` database was never a test destination. The external `phd-quest_mongo_data` volume retained its original creation time, `2026-11-14T22:45:53Z`. No resets, imports, restores or destructive test fixtures were applied there. Existing research records were retained. Read-only comparisons showed unchanged roadmap/goal/achievement/focus records; live task/XP/activity updates occurred during the session, so the actively used database is not claimed to be byte-for-byte frozen. New production meeting collections remained empty during verification.
 
 The startup timeout uncovered during validation was resolved by validating configuration before loading feature modules. Test timing/selectors were corrected to await rendered outcomes, and November timezone expectations were corrected to the runtime's current Casablanca rules. No unresolved feature failures remain.
+
+Current Node 24 commands and browser discovery are documented in [verification](VERIFICATION.md).

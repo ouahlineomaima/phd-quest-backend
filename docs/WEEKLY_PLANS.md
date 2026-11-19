@@ -29,7 +29,7 @@ curl.exe -X POST http://localhost:3000/api/weekly-plans/import/preview -H "Conte
 
 Preview is safe to repeat. Submit the same JSON to import/confirm only when you intend to save that week. Do not submit the saved-response example as an import: database IDs, timestamps and progress fields are deliberately forbidden in imports.
 
-Focused checks: `npm run test:plans` builds and runs eight deterministic safety tests. `npm run test:plans:smoke` requires a running API and exported MONGODB_URI (or the backend container environment); it creates only a UUID-marked free test week in 2099, checks concurrent import and progress preservation, and removes its own record afterward. It does not reset the database or run full infrastructure persistence checks. The normal npm test command retains the existing tests and includes the new focused tests.
+Focused checks: `npm run test:plans` covers deterministic rules/DTOs. `npm run test:plans:smoke` now requires explicit `TEST_MONGODB_URI` and creates a private API with an empty UUID database and ownership-checked cleanup; it never targets a running API. See [current verification](VERIFICATION.md).
 
 ## Conflict and progress policy
 

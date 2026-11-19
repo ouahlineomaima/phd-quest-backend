@@ -22,6 +22,8 @@ The built frontend passed 14 Stage 3 browser checks and 14 existing Stage 1/2 br
 
 All 12 production research collection hashes/counts match the pre-work baseline. The existing MongoDB volume retains its original 2026-11-14 creation timestamp. Startup hooks can change the operational control revision; it is audited separately from research records and from read-only API calls. No application dependency versions changed, and Stage 4/Feature 4 were not started.
 
-Use npm run test:stage3 for focused diagnostics/compatibility tests with an explicit Mongo URI (the compatibility test replaces its database name with a verified UUID namespace). npm run test:stage3:browser also requires PLAYWRIGHT_CORE_PATH and optionally CHROME_PATH; the latter can point to Edge. Run builds sequentially with watch servers stopped on memory-limited Docker installations.
+Use npm run test:stage3 for focused diagnostics/compatibility tests with an explicit TEST_MONGODB_URI (the compatibility test replaces its database name with a verified UUID namespace). npm run test:stage3:browser uses the local Playwright Core dev dependency and installed-browser discovery; BROWSER_EXECUTABLE can select Edge. Run builds sequentially with watch servers stopped on memory-limited Docker installations.
 
 Final live verification: 16 API/proxy GETs succeeded and kept revision 199 unchanged. Two application startups advanced only the operational control revision by 2. All 12 research fingerprints still matched; no disposable test databases remained. Both application containers were restored healthy.
+
+Stage 4 supersedes historical command setup; see [current verification](VERIFICATION.md).

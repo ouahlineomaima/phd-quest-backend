@@ -32,7 +32,7 @@ Version-1 backups accept optional checkpoint identities and preserve them on rou
 
 ## Verification commands
 
-After building, run `npm run test:stage2` with MONGODB_URI configured for a test replica set. HTTP tests create their own API and verify an empty UUID database before any writes; cleanup checks ownership. `npm run test:stage2:browser` reuses the consolidated Stage 1 browser workflow and adds generation/relinking, proficiency, history and read-purity checks. Supply PLAYWRIGHT_CORE_PATH and optionally CHROME_PATH; artifacts stay in the ignored frontend .artifacts directory. Frontend `node --test test/domain-contract.test.cjs test/focus-engine.test.cjs` needs only existing dependencies.
+After building, run `npm run test:stage2` with TEST_MONGODB_URI explicitly naming phd_quest_test on a test replica set. HTTP tests create their own API and verify an empty UUID database before any writes; cleanup checks ownership. `npm run test:stage2:browser` reuses the consolidated Stage 1 browser workflow and adds generation/relinking, proficiency, history and read-purity checks. Install backend dependencies and an available browser; optionally set BROWSER_EXECUTABLE; artifacts stay in the ignored frontend .artifacts directory. Frontend `node --test test/domain-contract.test.cjs test/focus-engine.test.cjs` needs only existing dependencies.
 
 Stage 3/4 work, broad formatting, component decomposition, accessibility/clock changes and new features are excluded.
 

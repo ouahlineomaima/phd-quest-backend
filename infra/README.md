@@ -74,7 +74,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1
 node scripts/compass-check.cjs
 ```
 
-The verification script starts the services, checks frontend/API/proxy, checks rs0 readiness, inserts a unique document into `_foundation_validation`, performs an ordinary Compose restart, confirms the document remains, deletes that test document, and checks localhost TCP and health again. It leaves the services running. The host probe separately connects from Windows using Mongoose with the exact Compass URI and validates a ping and writable rs0 primary. This checks protocol connectivity without requiring the Compass GUI.
+The verification script is now read-only. Start the services first; it checks frontend/API/proxy health, rs0 readiness, localhost TCP connectivity and the existing external volume configuration. It does not insert records or restart services. Transaction, restore and rollback checks belong to the owned disposable suites in [the verification guide](../docs/VERIFICATION.md). The host Compass probe only pings MongoDB and checks primary readiness.
 
 Source bind mounts and polling enable hot reload. Dependencies use anonymous container volumes so Windows node_modules never replace Linux dependencies. After changing a lockfile, use `docker compose up -d --build --renew-anon-volumes` to refresh only anonymous dependencies; the external database volume is unaffected.
 

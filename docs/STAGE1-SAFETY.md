@@ -30,7 +30,7 @@ Confirmed before the change, on an isolated API/database: an untrusted-origin UR
 
 After a backend build, `node --test test/safety/stage1.test.cjs` covers refusal guards, isolated HTTP origin/content-type checks, simultaneous/stale record writes, legacy version handling, restore invalidation and rollback. Set MONGODB_URI to the replica-set connection; tests replace its database with a verified empty UUID namespace and never send writes to the running API.
 
-`test/safety/browser.check.cjs` uses an existing Playwright Core installation supplied by PLAYWRIGHT_CORE_PATH and Chrome (CHROME_PATH may override the Windows default). It serves the built frontend through an ephemeral changeOrigin proxy, creates a verified owned database, checks two-tab drafts/inspection/reload, actual cross-origin form rejection and desktop/mobile views. Artifacts remain under the ignored frontend `.artifacts/stage1` directory.
+`test/safety/browser.check.cjs` now uses the local Playwright Core development dependency and portable installed Edge/Chrome/Chromium discovery. Explicit executable overrides remain supported. It serves the built frontend through a private changeOrigin proxy and an owned database. See [current verification](VERIFICATION.md); original Stage 1 results below remain historical.
 
 Future Stage 2 decision (not implemented here): use real numeric SkillLevel and string SkillSourceType enums while preserving proficiency 0-4 and source strings; keep UI icon/color choices as strongly typed readonly constants.
 
