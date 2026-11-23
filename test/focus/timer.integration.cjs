@@ -12,7 +12,7 @@ test('integrated task timer lifecycle, security, application and backup invarian
     uri.pathname = '/phd_quest_stage4_' + randomUUID().replaceAll('-', '');
     own = await isolated(uri.toString(), { CORS_ORIGINS: 'http://localhost:4200' });
     const clock = own.app.get(load('common/application-clock', 'ApplicationClock'));
-    let now = Date.now() - 3600000;
+    let now = Date.now() - 8 * 3600000;
     clock.now = () => new Date(now);
     mongoose.now = () => new Date(now);
     const plans = own.app.get(
@@ -146,39 +146,48 @@ test('integrated task timer lifecycle, security, application and backup invarian
       },
     );
     await t.test(
-      'GET recovery is pure and excludes every second beyond the last confirmed heartbeat',
+      'three hours without clients or heartbeats remain running; GET and reconciliation never pause',
       async () => {
-        now += 45001;
+        now += 3 * 3600000;
         const revision = await own.connection
           .collection('_application_control')
           .findOne({ _id: 'writes' });
         const current = await call('/current');
-        assert.equal(current.state, 'paused');
-        assert.equal(current.recovered, true);
-        assert.equal(current.elapsedMilliseconds, active.confirmedMilliseconds);
+        assert.equal(current.state, 'running');
+        assert.equal(current.recovered, false);
+        assert.equal(current.elapsedMilliseconds, active.confirmedMilliseconds + 3 * 3600000);
         assert.deepEqual(
           await own.connection.collection('_application_control').findOne({ _id: 'writes' }),
           revision,
         );
-        await call(
-          '/' + active.sessionId + '/heartbeat',
-          { ownerId: active.ownerId, ownerToken: active.ownerToken, sequence: 1, activity: true },
-          undefined,
-          409,
-        );
+        active = await call('/' + active.sessionId + '/heartbeat', {
+          ownerId: active.ownerId,
+          ownerToken: active.ownerToken,
+          sequence: 1,
+          activity: true,
+        });
         active = await call('/' + active.sessionId + '/reconcile', {}, active.editVersion);
+        assert.equal(active.state, 'running');
       },
     );
     await t.test(
-      'normal close pause and concurrent stop finalize once without applying time',
+      'only explicit pause/resume/stop finalize time; concurrent commands do not double count',
       async () => {
+        now += 2000;
+        const paused = await Promise.all([
+          call('/' + active.sessionId + '/pause', {}, active.editVersion),
+          call('/' + active.sessionId + '/pause', {}, active.editVersion),
+        ]);
+        active = paused[0];
+        assert.equal(active.confirmedMilliseconds, paused[1].confirmedMilliseconds);
+        now += 600000;
+        assert.equal((await call('/current')).elapsedMilliseconds, active.confirmedMilliseconds);
         active = await call(
           '/' + active.sessionId + '/resume',
           { ownerId: randomUUID() },
           active.editVersion,
         );
         now += 2000;
-        active = await call('/' + active.sessionId + '/pause', {}, active.editVersion);
         const result = await Promise.all([
           call('/' + active.sessionId + '/stop', {}, active.editVersion),
           call('/' + active.sessionId + '/stop', {}, active.editVersion),
@@ -318,49 +327,89 @@ test('integrated task timer lifecycle, security, application and backup invarian
     await t.test('trusted-origin JSON and If-Match boundaries remain enforced', async () => {
       await call('/start', startBody(), undefined, 403, 'https://untrusted.invalid');
       active = await call('/start', startBody(), undefined, 201, 'http://localhost:4200');
+      await call(
+        '/' + active.sessionId + '/pause',
+        {},
+        active.editVersion,
+        400,
+        'http://localhost:4200',
+      );
+      assert.equal((await call('/current')).state, 'running');
       await call('/' + active.sessionId + '/pause', {}, undefined, 428);
       await call('/' + active.sessionId + '/stop', {}, active.editVersion);
     });
     await t.test(
-      'scheduled heartbeats without fresh interaction cannot run beyond the work window',
+      'ten minutes in another tab and thirty minutes of inactivity never expire the timer',
       async () => {
         active = await call('/start', startBody(null));
-        for (let i = 1; i < 20; i++) {
+        now += 600000;
+        assert.equal((await call('/current')).elapsedMilliseconds, 600000);
+        now += 1200000;
+        assert.equal((await call('/current')).elapsedMilliseconds, 1800000);
+        active = await call('/' + active.sessionId + '/heartbeat', {
+          ownerId: active.ownerId,
+          ownerToken: active.ownerToken,
+          sequence: 1,
+          activity: false,
+        });
+        assert.equal(active.state, 'running');
+        assert.equal(active.elapsedMilliseconds, 1800000);
+        await call('/' + active.sessionId + '/stop', {}, active.editVersion);
+      },
+    );
+    await t.test(
+      'legacy lease metadata is ignored; previously paused sessions never silently resume',
+      async () => {
+        active = await call('/start', startBody(null));
+        const heartbeat = new Date(active.lastHeartbeatAt);
+        await own.connection.collection('focus_sessions').updateOne(
+          { sessionId: active.sessionId },
+          {
+            $unset: { timerPolicy: 1 },
+            $set: {
+              leaseUntil: new Date(+heartbeat + 45000),
+              activityUntil: new Date(+heartbeat + 300000),
+            },
+          },
+        );
+        now += 3 * 3600000;
+        const current = await call('/current');
+        assert.equal(current.state, 'running');
+        assert.equal(current.elapsedMilliseconds, 10800000);
+        active = await call('/' + active.sessionId + '/pause', {}, active.editVersion);
+        await own.connection
+          .collection('focus_sessions')
+          .updateOne(
+            { sessionId: active.sessionId },
+            { $unset: { timerPolicy: 1 }, $set: { recovered: true } },
+          );
+        now += 600000;
+        assert.equal((await call('/current')).state, 'paused');
+        assert.equal((await call('/current')).elapsedMilliseconds, 10800000);
+        await call('/' + active.sessionId + '/stop', {}, active.editVersion);
+      },
+    );
+    await t.test(
+      'countdown targets require explicit stop and preserve overtime without applying time',
+      async () => {
+        active = await call('/start', { ...startBody(), mode: 'countdown', targetSeconds: 60 });
+        for (let i = 1; i <= 4; i++) {
           now += 15000;
           active = await call('/' + active.sessionId + '/heartbeat', {
             ownerId: active.ownerId,
             ownerToken: active.ownerToken,
             sequence: i,
-            activity: false,
+            activity: true,
           });
         }
-        now += 15000;
-        await call(
-          '/' + active.sessionId + '/heartbeat',
-          { ownerId: active.ownerId, ownerToken: active.ownerToken, sequence: 20, activity: false },
-          undefined,
-          409,
-        );
-        assert.equal((await call('/current')).elapsedMilliseconds, 285000);
-        await call('/' + active.sessionId + '/stop', {}, active.editVersion);
+        assert.equal(active.state, 'running');
+        now += 60000;
+        active = await call('/' + active.sessionId + '/stop', {}, active.editVersion);
+        assert.equal(active.focusedSeconds, 120);
+        assert.equal(active.completionType, 'target-reached');
+        assert.equal((await plans.detail(plan.id)).tasks[0].actualMinutes, 5);
       },
     );
-    await t.test('countdown targets finalize automatically without applying time', async () => {
-      active = await call('/start', { ...startBody(), mode: 'countdown', targetSeconds: 60 });
-      for (let i = 1; i <= 4; i++) {
-        now += 15000;
-        active = await call('/' + active.sessionId + '/heartbeat', {
-          ownerId: active.ownerId,
-          ownerToken: active.ownerToken,
-          sequence: i,
-          activity: true,
-        });
-      }
-      assert.equal(active.state, 'stopped');
-      assert.equal(active.focusedSeconds, 60);
-      assert.equal(active.completionType, 'target-reached');
-      assert.equal((await plans.detail(plan.id)).tasks[0].actualMinutes, 5);
-    });
     await t.test(
       'an intervening manual task edit conflicts with the preview rather than overwriting it',
       async () => {
@@ -379,7 +428,7 @@ test('integrated task timer lifecycle, security, application and backup invarian
       },
     );
     await t.test(
-      'a fifteen-minute break finishes without work interaction and stays out of focus history',
+      'a fifteen-minute break stays running until explicit stop and remains outside focus history',
       async () => {
         const history = await call('');
         active = await call('/start', {
@@ -397,7 +446,8 @@ test('integrated task timer lifecycle, security, application and backup invarian
             activity: false,
           });
         }
-        assert.equal(active.state, 'stopped');
+        assert.equal(active.state, 'running');
+        active = await call('/' + active.sessionId + '/stop', {}, active.editVersion);
         assert.equal(active.focusedSeconds, 900);
         assert.equal((await call('')).total, history.total);
         await call(
@@ -409,7 +459,7 @@ test('integrated task timer lifecycle, security, application and backup invarian
       },
     );
     await t.test(
-      'old/new backups preserve durations and applied status; active restore is paused with fresh tokens',
+      'v1 backups preserve manual running anchors, applied status and fresh tokens; old backups remain compatible',
       async () => {
         active = await call('/start', startBody());
         now += 15000;
@@ -461,7 +511,8 @@ test('integrated task timer lifecycle, security, application and backup invarian
         const current = await restored.connection
           .collection('focus_sessions')
           .findOne({ activeSlot: 'workspace' });
-        assert.equal(current.state, 'paused');
+        assert.equal(current.state, 'running');
+        assert.equal(current.intervalStartedAt.toISOString(), active.intervalStartedAt);
         assert.equal(current.confirmedMilliseconds, active.confirmedMilliseconds);
         assert.equal(current.ownerToken, null);
         assert.notEqual(current.editVersion, active.editVersion);
@@ -474,7 +525,7 @@ test('integrated task timer lifecycle, security, application and backup invarian
         await assert.rejects(
           lifecycle.command(
             active.sessionId,
-            'resume',
+            'pause',
             '"' + active.editVersion + '"',
             randomUUID(),
           ),
@@ -540,6 +591,25 @@ test('integrated task timer lifecycle, security, application and backup invarian
             .focusedSeconds,
           stopped.focusedSeconds,
         );
+        const heartbeatEra = structuredClone(saved);
+        const oldActive = heartbeatEra.data.focusSessions.find((record) => record.activeSlot);
+        delete oldActive.timerPolicy;
+        oldActive.leaseUntil = new Date(
+          Date.parse(oldActive.lastHeartbeatAt) + 45000,
+        ).toISOString();
+        oldActive.activityUntil = new Date(
+          Date.parse(oldActive.lastHeartbeatAt) + 300000,
+        ).toISOString();
+        const oldPreview = await targetBackup.preview(heartbeatEra);
+        await targetBackup.restore({
+          backup: heartbeatEra,
+          digest: oldPreview.digest,
+          revision: oldPreview.revision,
+          confirmation: 'REPLACE ALL DATA',
+        });
+        const oldRestored = await lifecycle.current();
+        assert.equal(oldRestored.state, 'paused');
+        assert.equal(oldRestored.elapsedMilliseconds, oldActive.confirmedMilliseconds);
         const legacy = structuredClone(saved);
         legacy.data.focusSessions = [];
         legacy.counts.focusSessions = 0;

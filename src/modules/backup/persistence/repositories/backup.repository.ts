@@ -98,8 +98,12 @@ export class BackupRepository {
         const { id, ...originalFields } = row;
         const fields: Record<string, unknown> = { ...originalFields };
         if (section === 'focusSessions') {
-          // Restores never resume unattended work, and invalidate every pre-restore tab owner.
-          if (fields.state === 'running' || fields.state === 'paused')
+          // Preserve manual lifecycle/anchors; invalidate every pre-restore owner and editor.
+          // Legacy active backups retain their established conservative paused-restore policy.
+          if (
+            (fields.state === 'running' || fields.state === 'paused') &&
+            fields.timerPolicy !== 'manual'
+          )
             Object.assign(fields, {
               state: 'paused',
               activeSlot: 'workspace',
@@ -110,6 +114,17 @@ export class BackupRepository {
               ownerToken: null,
               heartbeatSequence: 0,
               recovered: true,
+            });
+          else if (
+            fields.timerPolicy === 'manual' &&
+            (fields.state === 'running' || fields.state === 'paused')
+          )
+            Object.assign(fields, {
+              ownerId: null,
+              ownerToken: null,
+              heartbeatSequence: 0,
+              leaseUntil: null,
+              activityUntil: null,
             });
           if (fields.state || fields.effectiveSeconds !== undefined || fields.applicationMode)
             fields.editVersion = randomUUID();

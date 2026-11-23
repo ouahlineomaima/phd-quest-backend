@@ -1,7 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { BackupRecords } from '../../../backup/persistence/interfaces/backup.interface';
 import { FocusMode, FocusKind, FocusState } from '../../persistence/enums/focus.enums';
-import { activityWindow, LEASE_MS } from './focus-lifecycle';
 import { validateFocus } from './focus-validation';
 import { FocusCompletion } from '../../persistence/enums/focus.enums';
 
@@ -39,7 +38,8 @@ export function validateTimerBackup(row: BackupRecords['focusSessions'], end: st
     !Object.values(FocusKind).includes(row.kind!) ||
     !Number.isSafeInteger(row.confirmedMilliseconds) ||
     row.confirmedMilliseconds! < 0 ||
-    row.confirmedMilliseconds! > (row.targetSeconds ?? 604800) * 1000 ||
+    (row.timerPolicy === undefined &&
+      row.confirmedMilliseconds! > (row.targetSeconds ?? 604800) * 1000) ||
     row.focusedSeconds !== Math.floor(row.confirmedMilliseconds! / 1000) ||
     row.confirmedMilliseconds! > Date.parse(row.endedAt ?? end) - start ||
     row.confirmedMilliseconds! > heartbeat - start ||
@@ -72,16 +72,26 @@ export function validateTimerBackup(row: BackupRecords['focusSessions'], end: st
     fail();
   if (running) {
     if (
-      !uuid(row.ownerId) ||
-      !uuid(row.ownerToken) ||
-      row.intervalStartedAt !== row.lastHeartbeatAt ||
-      !date(row.leaseUntil) ||
-      Date.parse(row.leaseUntil!) !== heartbeat + LEASE_MS ||
-      !date(row.activityUntil) ||
-      Date.parse(row.activityUntil!) < heartbeat ||
-      Date.parse(row.activityUntil!) > heartbeat + activityWindow(row)
+      !(row.timerPolicy === 'manual' && row.ownerId === null && row.ownerToken === null) &&
+      (!uuid(row.ownerId) || !uuid(row.ownerToken))
     )
       fail();
+    if (row.intervalStartedAt !== row.lastHeartbeatAt || !date(row.intervalStartedAt)) fail();
+    if (row.timerPolicy === 'manual') {
+      if (row.leaseUntil !== null || row.activityUntil !== null) fail();
+    } else {
+      // Validate historical metadata without using it to expire live sessions.
+      const legacyActivityWindow =
+        row.kind === FocusKind.Break ? row.targetSeconds! * 1000 + 45000 : 300000;
+      if (
+        !date(row.leaseUntil) ||
+        Date.parse(row.leaseUntil!) !== heartbeat + 45000 ||
+        !date(row.activityUntil) ||
+        Date.parse(row.activityUntil!) < heartbeat ||
+        Date.parse(row.activityUntil!) > heartbeat + legacyActivityWindow
+      )
+        fail();
+    }
   } else if (
     row.ownerId !== null ||
     row.ownerToken !== null ||
@@ -94,7 +104,10 @@ export function validateTimerBackup(row: BackupRecords['focusSessions'], end: st
   if (
     stopped &&
     row.completionType !==
-      (row.mode === FocusMode.Countdown && row.focusedSeconds === row.targetSeconds
+      (row.mode === FocusMode.Countdown &&
+      (row.timerPolicy === 'manual'
+        ? row.focusedSeconds >= row.targetSeconds!
+        : row.focusedSeconds === row.targetSeconds)
         ? FocusCompletion.TargetReached
         : FocusCompletion.StoppedEarly)
   )

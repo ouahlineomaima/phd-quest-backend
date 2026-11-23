@@ -630,6 +630,7 @@ export function validateBackup(input: unknown, timezone: string): LegacyBackupFi
         'ownerToken',
         'heartbeatSequence',
         'recovered',
+        'timerPolicy',
         'effectiveSeconds',
         'applicationMode',
         'actualMinutesBefore',
@@ -654,6 +655,7 @@ export function validateBackup(input: unknown, timezone: string): LegacyBackupFi
         'ownerToken',
         'heartbeatSequence',
         'recovered',
+        'timerPolicy',
       ].some((key) => Object.hasOwn(row, key))
     )
       invalid('focusSessions', 'Lifecycle metadata requires a complete timer state.');

@@ -26,6 +26,7 @@ export interface FocusSession {
   ownerToken?: string | null;
   heartbeatSequence?: number;
   recovered?: boolean;
+  timerPolicy?: 'manual';
   effectiveSeconds?: number;
   applicationMode?: 'task-actual';
   actualMinutesBefore?: number;

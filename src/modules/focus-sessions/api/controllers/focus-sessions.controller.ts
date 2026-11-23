@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Headers, Param, Post, Query, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { FocusLifecycleService } from '../../business/services/focus-lifecycle.service';
 import { StartFocusDto, FocusCommandDto, FocusHeartbeatDto } from '../dtos/focus-lifecycle.dto';
@@ -27,9 +37,14 @@ export class FocusSessionsController {
   }
   @Post(':id/pause') pause(
     @Param('id') id: string,
-    @Body() _body: FocusCommandDto,
+    @Body() body: FocusCommandDto,
     @Headers('if-match') version?: string,
+    @Headers('origin') origin?: string,
   ) {
+    // Cached pre-hotfix clients sent an empty keepalive body on pagehide. Reject it
+    // without affecting explicit controls (which include a tab ID) or originless CLI commands.
+    if (origin && !body.ownerId)
+      throw new BadRequestException('Use the explicit Pause timer control.');
     return this.lifecycle.command(id, 'pause', version);
   }
   @Post(':id/resume') resume(

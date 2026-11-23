@@ -8,7 +8,7 @@ A local research workspace for planning a PhD and recording progress. NestJS 11,
 - Daily activity, streak history, achievements and read-only dashboard summaries.
 - Goals connected to tasks across weeks, and goals connected to roadmap checkpoints.
 - Independent Level 0 Preparation Camp and twelve research chapters; manual checkpoint validation and level completion.
-- Shared task/Focus timer, server heartbeat recovery, corrected durations and explicit exactly-once task-time application.
+- Shared manual-control task/Focus timer, timestamp-based recovery, corrected durations and explicit exactly-once task-time application.
 - Supervisor profiles, meeting notes, preparation/follow-up actions and linked research activity.
 - Research Skill Tree, prerequisites, manual proficiency/history, evidence and targeted readiness.
 - Version-1 workspace backup export, validation preview and atomic restore; JSON plan/roadmap imports.

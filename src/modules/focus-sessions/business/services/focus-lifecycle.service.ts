@@ -18,13 +18,7 @@ import {
   FocusState,
 } from '../../persistence/enums/focus.enums';
 import { FocusHeartbeatDto, StartFocusDto } from '../../api/dtos/focus-lifecycle.dto';
-import {
-  activityWindow,
-  expired,
-  LEASE_MS,
-  measuredMilliseconds,
-  sessionView,
-} from './focus-lifecycle';
+import { measuredMilliseconds, sessionView } from './focus-lifecycle';
 import { validateFocus } from './focus-validation';
 
 @Injectable()
@@ -112,13 +106,14 @@ export class FocusLifecycleService {
           confirmedMilliseconds: 0,
           intervalStartedAt: at,
           lastHeartbeatAt: at,
-          leaseUntil: new Date(at.getTime() + LEASE_MS),
-          activityUntil: new Date(at.getTime() + activityWindow(input)),
+          leaseUntil: null,
+          activityUntil: null,
           ownerId: input.ownerId,
           ownerToken: randomUUID(),
           heartbeatSequence: 0,
           editVersion: randomUUID(),
           recovered: false,
+          timerPolicy: 'manual',
         },
         s,
       );
@@ -145,16 +140,14 @@ export class FocusLifecycleService {
       }
       if (action === 'pause' && row.state === FocusState.Paused) return sessionView(row, now);
       assertEditVersion(row, version);
-      const stale = expired(row, now),
-        milliseconds = measuredMilliseconds(row, now);
-      if (action === 'reconcile' && !stale) return sessionView(row, now);
-      if (action === 'claim' && (stale || row.state !== FocusState.Running))
-        throw new ConflictException(
-          'The owner lease expired. Reload and explicitly resume the paused timer.',
-        );
+      const milliseconds = measuredMilliseconds(row, now);
+      // Synchronization never changes lifecycle, including legacy records with expired leases.
+      if (action === 'reconcile') return sessionView(row, now);
+      if (action === 'claim' && row.state !== FocusState.Running)
+        throw new ConflictException('Only a running timer can transfer ownership.');
       if ((action === 'resume' || action === 'claim') && !ownerId)
         throw new BadRequestException('A tab identity is required.');
-      if (action === 'resume' && row.state === FocusState.Running && !stale)
+      if (action === 'resume' && row.state === FocusState.Running)
         throw new ConflictException('This timer is already running.');
       const running = action === 'resume' || action === 'claim';
       const stopped = action === 'stop';
@@ -163,21 +156,17 @@ export class FocusLifecycleService {
         confirmedMilliseconds: milliseconds,
         focusedSeconds: Math.floor(milliseconds / 1000),
         intervalStartedAt: running ? now : null,
-        lastHeartbeatAt: running || !stale ? now : row.lastHeartbeatAt,
-        leaseUntil: running ? new Date(now.getTime() + LEASE_MS) : null,
-        // A leader handoff is not evidence of fresh user activity.
-        activityUntil: running
-          ? action === 'claim'
-            ? row.activityUntil
-            : new Date(now.getTime() + activityWindow(row))
-          : null,
+        lastHeartbeatAt: now,
+        leaseUntil: null,
+        activityUntil: null,
         ownerId: running ? ownerId : null,
         ownerToken: running ? randomUUID() : null,
         heartbeatSequence: 0,
-        recovered: running ? false : stale || !!row.recovered,
+        recovered: running ? false : !!row.recovered,
+        timerPolicy: 'manual',
         endedAt: stopped ? now : null,
         completionType: stopped
-          ? row.mode === FocusMode.Countdown && milliseconds === row.targetSeconds! * 1000
+          ? row.mode === FocusMode.Countdown && milliseconds >= row.targetSeconds! * 1000
             ? FocusCompletion.TargetReached
             : FocusCompletion.StoppedEarly
           : null,
@@ -198,41 +187,14 @@ export class FocusLifecycleService {
       );
       if (
         row.state !== FocusState.Running ||
-        expired(row, now) ||
         row.ownerId !== input.ownerId ||
         row.ownerToken !== input.ownerToken ||
         input.sequence !== (row.heartbeatSequence ?? 0) + 1
       )
         throw new ConflictException(
-          'Timer activity is stale. Reload; an expired session must be explicitly resumed.',
+          'Timer activity is stale. Reload the current session before synchronizing.',
         );
       const milliseconds = measuredMilliseconds(row, now);
-      if (milliseconds >= (row.targetSeconds ?? 604800) * 1000) {
-        const stopped = await this.repository.updateLifecycle(
-          row,
-          {
-            state: FocusState.Stopped,
-            confirmedMilliseconds: milliseconds,
-            focusedSeconds: Math.floor(milliseconds / 1000),
-            endedAt: now,
-            lastHeartbeatAt: now,
-            intervalStartedAt: null,
-            leaseUntil: null,
-            activityUntil: null,
-            ownerId: null,
-            ownerToken: null,
-            heartbeatSequence: 0,
-            completionType:
-              row.mode === FocusMode.Countdown
-                ? FocusCompletion.TargetReached
-                : FocusCompletion.StoppedEarly,
-          },
-          s,
-          true,
-        );
-        if (!stopped) throw new ConflictException('The timer changed. Reload before trying again.');
-        return sessionView(stopped, now);
-      }
       const saved = await this.repository.heartbeat(
         id,
         {
@@ -240,11 +202,10 @@ export class FocusLifecycleService {
           focusedSeconds: Math.floor(milliseconds / 1000),
           intervalStartedAt: now,
           lastHeartbeatAt: now,
-          leaseUntil: new Date(now.getTime() + LEASE_MS),
+          leaseUntil: null,
           heartbeatSequence: input.sequence,
-          activityUntil: input.activity
-            ? new Date(now.getTime() + activityWindow(row))
-            : row.activityUntil,
+          activityUntil: null,
+          timerPolicy: 'manual',
         },
         s,
       );
