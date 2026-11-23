@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { randomUUID } = require('node:crypto');
 module.exports = async function ({ page: previousPage, origin, pass, call, own }) {
   // Stage 4 installs a synthetic calendar clock. Timer presence/lifecycle checks need a fresh real-clock context.
   const browser = previousPage.context().browser();
@@ -101,6 +102,68 @@ module.exports = async function ({ page: previousPage, origin, pass, call, own }
     );
     assert.equal((await call('/weekly-plans/' + plan.id)).tasks[0].actualMinutes, 3);
     assert.equal(await mini.count(), 0);
+    const finishOffer = page.getByRole('region', { name: 'Time applied. Finish this task?' });
+    await finishOffer.waitFor();
+    assert.equal((await call('/weekly-plans/' + plan.id)).tasks[0].status, 'pending');
+    const beforeCompletion = await call('/gamification/summary');
+    await page.route('**/api/weekly-plans/*/tasks/*/complete', (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Temporary completion failure' }),
+      }),
+    );
+    await finishOffer.getByRole('button', { name: 'Complete task', exact: true }).click();
+    await finishOffer.getByRole('alert').filter({ hasText: 'Time is already saved' }).waitFor();
+    assert.equal((await call('/weekly-plans/' + plan.id)).tasks[0].actualMinutes, 3);
+    await page.unroute('**/api/weekly-plans/*/tasks/*/complete');
+    await finishOffer.getByRole('button', { name: 'Complete task', exact: true }).click();
+    await finishOffer.waitFor({ state: 'hidden' });
+    const completed = (await call('/weekly-plans/' + plan.id)).tasks[0];
+    assert.equal(completed.status, 'completed');
+    assert.equal(completed.actualMinutes, 3);
+    const awarded = await call('/gamification/summary');
+    assert.equal(awarded.totalXp - beforeCompletion.totalXp, example.tasks[0].xpReward);
+    await call(
+      '/weekly-plans/' + plan.id + '/tasks/integrated-timer/complete',
+      'PATCH',
+      {},
+      undefined,
+      200,
+    );
+    assert.equal((await call('/gamification/summary')).totalXp, awarded.totalXp);
+    assert.equal(new URL(page.url()).pathname, '/focus');
+    pass(
+      'After applying time, optional completion stays on Focus, retries safely, preserves actual minutes and awards XP once',
+    );
+    const extra = await call(
+      '/focus-sessions/start',
+      'POST',
+      {
+        sessionId: randomUUID(),
+        ownerId: randomUUID(),
+        kind: 'focus',
+        mode: 'stopwatch',
+        targetSeconds: null,
+        taskRef: first.taskRef,
+      },
+      undefined,
+      201,
+    );
+    now += 1000;
+    await call('/focus-sessions/' + extra.sessionId + '/stop', 'POST', {}, extra.editVersion, 201);
+    await page.getByRole('button', { name: 'Refresh history', exact: true }).click();
+    await page.getByRole('button', { name: 'Review / apply time', exact: true }).click();
+    await dialog.waitFor();
+    await correction.fill('1');
+    await dialog.getByRole('button', { name: 'Confirm apply time to task' }).click();
+    await dialog.waitFor({ state: 'hidden' });
+    assert.equal(await finishOffer.count(), 0);
+    assert.equal((await call('/weekly-plans/' + plan.id)).tasks[0].actualMinutes, 4);
+    assert.equal((await call('/gamification/summary')).totalXp, awarded.totalXp);
+    pass(
+      'Applying more time to a completed task preserves its status and does not offer completion or award more XP',
+    );
     pass(
       'Global timer survives routes; keyboard pause/resume excludes pauses; corrected task application is explicit and exactly once',
     );
@@ -113,7 +176,7 @@ module.exports = async function ({ page: previousPage, origin, pass, call, own }
     await correction.fill('2');
     await dialog.getByRole('button', { name: 'Save without applying', exact: true }).click();
     await dialog.waitFor({ state: 'hidden' });
-    assert.equal((await call('/weekly-plans/' + plan.id)).tasks[0].actualMinutes, 3);
+    assert.equal((await call('/weekly-plans/' + plan.id)).tasks[0].actualMinutes, 4);
     pass(
       'Focus page uses the same lifecycle and saves a standalone corrected duration without task application',
     );
