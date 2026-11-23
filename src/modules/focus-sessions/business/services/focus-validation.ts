@@ -2,7 +2,7 @@ import { TASK_REFERENCE } from '../../../../common/identifiers';
 import { FocusMode, FocusCompletion } from '../../persistence/enums/focus.enums';
 import { BadRequestException } from '@nestjs/common';
 import { calendarOrdinal } from '../../../../common/calendar';
-import { SaveFocusSessionDto } from '../../api/dtos/focus-session.dto';
+import type { SaveFocusSessionDto } from '../../api/dtos/focus-session.dto';
 export function validateFocus(input: SaveFocusSessionDto, now: Date) {
   const start = new Date(input.startedAt),
     end = new Date(input.endedAt);

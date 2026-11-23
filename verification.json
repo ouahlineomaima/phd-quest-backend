@@ -33,7 +33,8 @@
         "test/research/dashboard.test.cjs",
         "test/contracts/*.test.cjs",
         "test/stage3/diagnostics.test.cjs",
-        "test/stage4/*.test.cjs"
+        "test/stage4/*.test.cjs",
+        "test/focus/*.test.cjs"
       ]
     },
     "integration": {
@@ -45,7 +46,8 @@
         "test/safety/stage2.test.cjs",
         "test/safety/smoke-cleanup.test.cjs",
         "test/stage3/compatibility.test.cjs",
-        "test/stage4/*.integration.cjs"
+        "test/stage4/*.integration.cjs",
+        "test/focus/*.integration.cjs"
       ],
       "commands": [
         ["test/focus/focus.check.cjs"],
@@ -66,7 +68,7 @@
       "commands": [["test/stage4/performance.check.cjs"]]
     },
     "browser": {
-      "commands": [["test/stage4/browser.check.cjs"]]
+      "commands": [["test/focus/timer.browser.cjs"]]
     }
   },
   "suites": {
@@ -110,6 +112,7 @@
       "commands": [["test/skills/browser.check.cjs"]]
     },
     "focus": {
+      "tests": ["test/focus/*.integration.cjs", "test/focus/*.test.cjs"],
       "commands": [["test/focus/focus.check.cjs"]]
     },
     "backup": {

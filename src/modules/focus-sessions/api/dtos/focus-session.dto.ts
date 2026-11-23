@@ -44,4 +44,13 @@ export class TaskTimesQuery {
 
 export class ApplyFocusTimeDto {
   @Equals(true) confirm!: true;
+  @ValidateIf((_o, v) => v !== undefined) @IsInt() @Min(0) @Max(1440) effectiveMinutes?: number;
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsInt()
+  @Min(0)
+  @Max(1440)
+  expectedActualMinutes?: number;
+}
+export class CorrectFocusTimeDto {
+  @IsInt() @Min(0) @Max(1440) effectiveMinutes!: number;
 }

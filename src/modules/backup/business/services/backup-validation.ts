@@ -11,6 +11,7 @@ import {
 import { SaveFocusSessionDto } from '../../../focus-sessions/api/dtos/focus-session.dto';
 import { CHECKPOINT_IDENTITY } from '../../../../common/identifiers';
 import { validateFocus } from '../../../focus-sessions/business/services/focus-validation';
+import { validateTimerBackup } from '../../../focus-sessions/business/services/focus-backup-validation';
 import { validateSkillsBackup } from '../../../research-skills/business/services/skills-backup-validation';
 import { validateMeetingBackup } from '../../../supervisor-meetings/business/services/meeting-backup-validation';
 import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
@@ -220,7 +221,14 @@ export function validateBackup(input: unknown, timezone: string): LegacyBackupFi
       if (
         (task.status === 'completed') !== (completed !== null) ||
         (completed && (!first || first > completed)) ||
-        (!first && task.actualMinutes !== 0)
+        (!first &&
+          task.actualMinutes !== 0 &&
+          !(data.focusSessions ?? []).some(
+            (focus) =>
+              focus.taskRef === row.weekId + ':' + task.id &&
+              focus.applicationMode === 'task-actual' &&
+              focus.appliedAt,
+          ))
       )
         invalid('tasks', 'Completion state, first completion and recorded time are inconsistent.');
       const source = row.weekId + ':' + task.id;
@@ -609,14 +617,49 @@ export function validateBackup(input: unknown, timezone: string): LegacyBackupFi
         'createdAt',
         'updatedAt',
       ],
-      [],
+      [
+        'state',
+        'kind',
+        'activeSlot',
+        'confirmedMilliseconds',
+        'intervalStartedAt',
+        'lastHeartbeatAt',
+        'leaseUntil',
+        'activityUntil',
+        'ownerId',
+        'ownerToken',
+        'heartbeatSequence',
+        'recovered',
+        'effectiveSeconds',
+        'applicationMode',
+        'actualMinutesBefore',
+        'actualMinutesAfter',
+      ],
       'focusSessions',
     );
     history(row, 'focusSessions', end);
     timestamp(row.startedAt, 'focusSessions.startedAt', end);
-    timestamp(row.endedAt, 'focusSessions.endedAt', end);
-    validateFocus(plainToInstance(SaveFocusSessionDto, row), new Date(end));
-    if (row.endedAt > row.createdAt)
+    timestamp(row.endedAt, 'focusSessions.endedAt', end, !!row.state && row.state !== 'stopped');
+    if (
+      !row.state &&
+      [
+        'kind',
+        'activeSlot',
+        'confirmedMilliseconds',
+        'intervalStartedAt',
+        'lastHeartbeatAt',
+        'leaseUntil',
+        'activityUntil',
+        'ownerId',
+        'ownerToken',
+        'heartbeatSequence',
+        'recovered',
+      ].some((key) => Object.hasOwn(row, key))
+    )
+      invalid('focusSessions', 'Lifecycle metadata requires a complete timer state.');
+    if (row.state) validateTimerBackup(row, end);
+    else validateFocus(plainToInstance(SaveFocusSessionDto, row), new Date(end));
+    if (!row.state && row.endedAt! > row.createdAt)
       invalid('focusSessions', 'A session cannot be created before it ends.');
     if (row.taskRef !== null) text(row.taskTitle, 'focusSessions.taskTitle', 160);
     else if (row.taskTitle !== null)
@@ -628,15 +671,41 @@ export function validateBackup(input: unknown, timezone: string): LegacyBackupFi
       row.appliedAt
         ? !row.taskRef ||
           !tasks.has(row.taskRef) ||
-          row.appliedMinutes < 1 ||
-          row.appliedMinutes !== Math.floor(row.focusedSeconds / 60)
+          (row.applicationMode !== 'task-actual' && row.appliedMinutes < 1) ||
+          row.appliedMinutes !== Math.floor((row.effectiveSeconds ?? row.focusedSeconds) / 60)
         : row.appliedMinutes !== 0
     )
       invalid(
         'focusSessions',
         'Applied time must reference an existing task exactly once with the floored session minutes.',
       );
+    if (
+      row.applicationMode === undefined &&
+      (row.actualMinutesBefore !== undefined || row.actualMinutesAfter !== undefined)
+    )
+      invalid('focusSessions', 'Task-time totals require application provenance.');
+    if (row.applicationMode !== undefined || row.effectiveSeconds !== undefined) {
+      if (row.effectiveSeconds !== undefined) {
+        integer(row.effectiveSeconds, 'focusSessions.effectiveSeconds', 0, 86400);
+        if (row.effectiveSeconds % 60) invalid('focusSessions', 'Corrections use whole minutes.');
+      }
+      if (row.applicationMode !== undefined) {
+        if (
+          row.applicationMode !== 'task-actual' ||
+          !row.appliedAt ||
+          row.effectiveSeconds === undefined
+        )
+          invalid('focusSessions', 'Invalid task-time application provenance.');
+        integer(row.actualMinutesBefore, 'focusSessions.actualMinutesBefore', 0, 1440);
+        integer(row.actualMinutesAfter, 'focusSessions.actualMinutesAfter', 0, 1440);
+        if (row.actualMinutesAfter !== row.actualMinutesBefore! + row.appliedMinutes)
+          invalid('focusSessions', 'Task-time provenance is inconsistent.');
+      } else if (row.appliedAt)
+        invalid('focusSessions', 'A corrected applied session needs provenance.');
+    }
   }
+  if (focus.filter((row) => row.activeSlot === 'workspace').length > 1)
+    invalid('focusSessions', 'Only one active workspace timer is allowed.');
   validateMeetingBackup(data, end);
   validateSkillsBackup(data, end);
   return file as unknown as LegacyBackupFile;

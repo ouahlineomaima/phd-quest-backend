@@ -13,6 +13,8 @@ import { sundayWeek } from '../../../dashboard/business/services/sunday-week';
 import { FocusSessionsRepository } from '../../persistence/repositories/focus-sessions.repository';
 import { SaveFocusSessionDto } from '../../api/dtos/focus-session.dto';
 import { validateFocus } from './focus-validation';
+import { assertEditVersion, editVersion } from '../../../../database/edit-version';
+import { FocusState, FocusKind } from '../../persistence/enums/focus.enums';
 @Injectable()
 export class FocusSessionsService {
   constructor(
@@ -83,14 +85,14 @@ export class FocusSessionsService {
   preview(id: string) {
     return this.connection.transaction(
       async (session) => {
-        const record = await this.repository.find(id, session);
+        const record = await this.repository.editable(id, session);
         if (!record) throw new NotFoundException('Focus session not found.');
         const task = record.taskRef ? await this.repository.task(record.taskRef, session) : null;
         const totals = record.taskRef
           ? await this.repository.applied(record.taskRef.split(':')[0], session)
           : [];
         return {
-          session: record,
+          session: { ...record, editVersion: editVersion(record) },
           task: task
             ? {
                 title: task.title,
@@ -99,17 +101,80 @@ export class FocusSessionsService {
                 appliedFocusMinutes: totals.find((row) => row._id === record.taskRef)?.minutes ?? 0,
               }
             : null,
-          proposedMinutes: Math.floor(record.focusedSeconds / 60),
+          proposedMinutes: Math.floor((record.effectiveSeconds ?? record.focusedSeconds) / 60),
         };
       },
       { readConcern: { level: 'snapshot' } },
     );
   }
-  apply(id: string) {
+  correct(id: string, minutes: number, version?: string) {
+    this.validMinutes(minutes);
+    return applicationWrite(this.connection, async (s) => {
+      const record = await this.repository.editable(id, s);
+      if (!record) throw new NotFoundException('Focus session not found.');
+      if (record.appliedAt || !record.endedAt || record.kind === FocusKind.Break)
+        throw new ConflictException('Only an unapplied stopped focus session can be corrected.');
+      assertEditVersion(record, version);
+      return this.repository.updateLifecycle(record, { effectiveSeconds: minutes * 60 }, s);
+    });
+  }
+  private validMinutes(minutes: number) {
+    if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440)
+      throw new BadRequestException('Use whole effective minutes from 0 to 1,440.');
+  }
+  apply(id: string, effectiveMinutes?: number, version?: string, expectedActualMinutes?: number) {
+    if (effectiveMinutes !== undefined) this.validMinutes(effectiveMinutes);
     return applicationWrite(this.connection, async (session) => {
-      const record = await this.repository.find(id, session);
+      const record = await this.repository.editable(id, session);
       if (!record) throw new NotFoundException('Focus session not found.');
       if (record.appliedAt) return record;
+      if (
+        !record.endedAt ||
+        record.kind === FocusKind.Break ||
+        (record.state && record.state !== FocusState.Stopped)
+      )
+        throw new ConflictException('Stop the focus session before applying time.');
+      const updatesActual =
+        !!record.state || effectiveMinutes !== undefined || record.effectiveSeconds !== undefined;
+      if (updatesActual) {
+        assertEditVersion(record, version);
+        const minutes =
+          effectiveMinutes ?? Math.floor((record.effectiveSeconds ?? record.focusedSeconds) / 60);
+        this.validMinutes(minutes);
+        const task = record.taskRef ? await this.repository.task(record.taskRef, session) : null;
+        if (!task)
+          throw new ConflictException(
+            'The linked task is unavailable. Session history is preserved.',
+          );
+        if (expectedActualMinutes !== undefined && task.actualMinutes !== expectedActualMinutes)
+          throw new ConflictException(
+            'Task time changed after preview. Your correction is retained; inspect the latest task time.',
+          );
+        if (task.actualMinutes + minutes > 1440)
+          throw new BadRequestException(
+            'The resulting task actual duration cannot exceed 1,440 minutes.',
+          );
+        const changed = await this.repository.addTaskMinutes(
+          record.taskRef!,
+          minutes,
+          this.clock.now(),
+          session,
+        );
+        if (changed.modifiedCount !== 1 && minutes !== 0)
+          throw new ConflictException('The linked task changed.');
+        return this.repository.updateLifecycle(
+          record,
+          {
+            effectiveSeconds: minutes * 60,
+            appliedAt: this.clock.now(),
+            appliedMinutes: minutes,
+            applicationMode: 'task-actual',
+            actualMinutesBefore: task.actualMinutes,
+            actualMinutesAfter: task.actualMinutes + minutes,
+          },
+          session,
+        );
+      }
       const minutes = Math.floor(record.focusedSeconds / 60);
       if (!record.taskRef || minutes < 1)
         throw new BadRequestException(

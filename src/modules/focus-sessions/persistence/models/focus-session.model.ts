@@ -1,6 +1,6 @@
-import { FocusMode, FocusCompletion } from '../enums/focus.enums';
+import { FocusMode, FocusCompletion, FocusState, FocusKind } from '../enums/focus.enums';
 import { Schema } from 'mongoose';
-import { FocusSession } from '../interfaces/focus-session.interface';
+import type { FocusSession } from '../interfaces/focus-session.interface';
 export const FOCUS_MODEL = 'FocusSession';
 export const focusSessionSchema = new Schema<FocusSession>(
   {
@@ -8,13 +8,30 @@ export const focusSessionSchema = new Schema<FocusSession>(
     mode: { type: String, enum: Object.values(FocusMode), required: true },
     targetSeconds: { type: Number, default: null },
     startedAt: { type: Date, required: true },
-    endedAt: { type: Date, required: true },
-    focusedSeconds: { type: Number, min: 1, max: 604800, required: true },
+    endedAt: { type: Date, default: null },
+    focusedSeconds: { type: Number, min: 0, max: 604800, required: true },
     taskRef: { type: String, default: null },
     taskTitle: { type: String, default: null, maxlength: 160 },
-    completionType: { type: String, enum: Object.values(FocusCompletion), required: true },
+    completionType: { type: String, enum: Object.values(FocusCompletion), default: null },
     appliedAt: { type: Date, default: null },
     appliedMinutes: { type: Number, min: 0, default: 0 },
+    state: { type: String, enum: Object.values(FocusState) },
+    kind: { type: String, enum: Object.values(FocusKind) },
+    activeSlot: String,
+    editVersion: String,
+    confirmedMilliseconds: { type: Number, min: 0, max: 604800000 },
+    intervalStartedAt: Date,
+    lastHeartbeatAt: Date,
+    leaseUntil: Date,
+    activityUntil: Date,
+    ownerId: String,
+    ownerToken: String,
+    heartbeatSequence: { type: Number, min: 0 },
+    recovered: Boolean,
+    effectiveSeconds: { type: Number, min: 0, max: 86400 },
+    applicationMode: { type: String, enum: ['task-actual'] },
+    actualMinutesBefore: { type: Number, min: 0, max: 1440 },
+    actualMinutesAfter: { type: Number, min: 0, max: 1440 },
   },
   {
     collection: 'focus_sessions',

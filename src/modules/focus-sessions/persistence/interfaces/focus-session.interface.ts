@@ -1,16 +1,33 @@
-import { FocusMode, FocusCompletion } from '../enums/focus.enums';
+import type { FocusMode, FocusCompletion, FocusState, FocusKind } from '../enums/focus.enums';
 export interface FocusSession {
   sessionId: string;
   mode: FocusMode;
   targetSeconds: number | null;
   startedAt: Date;
-  endedAt: Date;
+  endedAt: Date | null;
   focusedSeconds: number;
   taskRef: string | null;
   taskTitle: string | null;
-  completionType: FocusCompletion;
+  completionType: FocusCompletion | null;
   appliedAt: Date | null;
   appliedMinutes: number;
   createdAt: Date;
   updatedAt: Date;
+  state?: FocusState;
+  kind?: FocusKind;
+  activeSlot?: string;
+  editVersion?: string;
+  confirmedMilliseconds?: number;
+  intervalStartedAt?: Date | null;
+  lastHeartbeatAt?: Date | null;
+  leaseUntil?: Date | null;
+  activityUntil?: Date | null;
+  ownerId?: string | null;
+  ownerToken?: string | null;
+  heartbeatSequence?: number;
+  recovered?: boolean;
+  effectiveSeconds?: number;
+  applicationMode?: 'task-actual';
+  actualMinutesBefore?: number;
+  actualMinutesAfter?: number;
 }

@@ -445,6 +445,15 @@ const pass = (label) => {
         call,
         skillId: skill.id,
       });
+    if (process.env.TIMER_BROWSER === '1')
+      await require('../focus/timer-browser-workflow.cjs')({
+        page: b,
+        peer: a,
+        origin,
+        pass,
+        call,
+        own,
+      });
     assert.deepEqual(errors, []);
     fs.writeFileSync(
       path.join(artifacts, 'results.json'),

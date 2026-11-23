@@ -85,3 +85,9 @@ Each repository's `.github/workflows/verify.yml` runs Node 24, `npm ci`, build, 
 Explicit persistence-restart checks first close the prior application, then re-verify the existing reservation and ownership marker. Fresh application setup still refuses every nonempty target, including an already-running owned database.
 
 A 403 UNTRUSTED_ORIGIN means the address-bar origin differs from CORS_ORIGINS. The default application address is http://localhost:4200; http://127.0.0.1:4200 is a distinct origin. Use the configured address, or explicitly add an intended alternative to the trusted list and recreate/restart the backend configuration. Do not disable the origin boundary.
+
+## Integrated task timer
+
+`npm run test:focus` now includes server lifecycle, heartbeat/ownership/expiration, explicit corrected application, manual-edit conflicts and v1 backup/active-session restore checks alongside the legacy Focus workflow. It requires the same explicit test seed and owned UUID isolation. Safe default unit checks include timestamp accounting and exact recovery cutoffs.
+
+The consolidated `npm run test:browser` includes the Stage 1–4 checks and timer tests for Weekly Plan entry, shared Focus controls, mini timer navigation, keyboard pause/resume, correction/application, save without applying, multi-tab ownership, last-tab close delivery and failed-delivery recovery. It uses a private API/database and the existing portable launcher. See [Focus](FOCUS.md) for the five-minute activity policy, 15-second heartbeats, 45-second cutoff and compatibility-sensitive actual-time application behavior.

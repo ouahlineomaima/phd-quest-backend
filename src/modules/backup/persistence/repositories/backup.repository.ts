@@ -1,4 +1,5 @@
 import { FOCUS_MODEL } from '../../../focus-sessions/persistence/models/focus-session.model';
+import { randomUUID } from 'node:crypto';
 import {
   SKILL_CATEGORY_MODEL,
   RESEARCH_SKILL_MODEL,
@@ -94,7 +95,25 @@ export class BackupRepository {
     const prepared = {} as Record<BackupSection, HydratedDocument<Record<string, unknown>>[]>;
     for (const section of BACKUP_SECTIONS) {
       prepared[section] = (backup.data[section] ?? []).map((row) => {
-        const { id, ...fields } = row;
+        const { id, ...originalFields } = row;
+        const fields: Record<string, unknown> = { ...originalFields };
+        if (section === 'focusSessions') {
+          // Restores never resume unattended work, and invalidate every pre-restore tab owner.
+          if (fields.state === 'running' || fields.state === 'paused')
+            Object.assign(fields, {
+              state: 'paused',
+              activeSlot: 'workspace',
+              intervalStartedAt: null,
+              leaseUntil: null,
+              activityUntil: null,
+              ownerId: null,
+              ownerToken: null,
+              heartbeatSequence: 0,
+              recovered: true,
+            });
+          if (fields.state || fields.effectiveSeconds !== undefined || fields.applicationMode)
+            fields.editVersion = randomUUID();
+        }
         const record = new (this.model(section))({
           ...(dates(fields) as object),
           _id: new Types.ObjectId(id as string),

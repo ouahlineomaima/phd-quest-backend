@@ -1,5 +1,6 @@
 {
   "typescript": [
+    "src/modules/focus-sessions/{api/**/*.ts,business/**/*.ts,persistence/**/*.ts}",
     "src/common/{api-exception.filter,request-logging,request-context,safe-error-diagnostic,configure-api}.ts",
     "src/modules/research-skills/{business/services/research-skills.service,persistence/repositories/skills.repository}.ts",
     "src/modules/supervisor-meetings/{business/services/meetings.service,persistence/repositories/meetings.repository}.ts",
@@ -7,6 +8,7 @@
   ],
   "templates": [],
   "javascript": [
+    "test/focus/timer*.cjs",
     "scripts/quality.mjs",
     "test/stage3/*.test.cjs",
     "test/unit/logging.test.cjs",

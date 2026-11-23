@@ -5,13 +5,14 @@ import { FOCUS_MODEL, focusSessionSchema } from './persistence/models/focus-sess
 import { FocusSessionsController } from './api/controllers/focus-sessions.controller';
 import { FocusSessionsService } from './business/services/focus-sessions.service';
 import { FocusSessionsRepository } from './persistence/repositories/focus-sessions.repository';
+import { FocusLifecycleService } from './business/services/focus-lifecycle.service';
 @Module({
   imports: [
     TimeModule,
     MongooseModule.forFeature([{ name: FOCUS_MODEL, schema: focusSessionSchema }]),
   ],
   controllers: [FocusSessionsController],
-  providers: [FocusSessionsRepository, FocusSessionsService],
+  providers: [FocusSessionsRepository, FocusSessionsService, FocusLifecycleService],
   exports: [MongooseModule, FocusSessionsService],
 })
 export class FocusSessionsModule {}
