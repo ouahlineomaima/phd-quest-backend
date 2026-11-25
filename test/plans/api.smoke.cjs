@@ -105,6 +105,81 @@ const example = require('../../docs/contracts/weekly-plan.v1.example.json');
     assert.equal(retrieved.tasks[0].status, 'completed');
     assert.equal(retrieved.tasks[0].actualMinutes, 35);
     assert.equal(retrieved.tasks[0].completedAt, when);
+    const descriptionUrl = `${base}/weekly-plans/${saved.id}/tasks/${saved.tasks[0].id}/description`;
+    const describe = (body, url = descriptionUrl) =>
+      fetch(url, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    const historyBefore = await Promise.all(
+      ['xp_transactions', 'daily_activity'].map((name) =>
+        connection
+          .collection(name)
+          .find({}, { projection: { __v: 0 } })
+          .toArray(),
+      ),
+    );
+    for (const body of [
+      {},
+      { description: null },
+      { description: 42 },
+      { description: 'x'.repeat(2001) },
+      { description: 'text', status: 'pending' },
+    ])
+      assert.equal((await describe(body)).status, 400);
+    assert.equal(
+      (
+        await describe(
+          { description: 'missing' },
+          descriptionUrl.replace(saved.tasks[0].id + '/description', 'missing-task/description'),
+        )
+      ).status,
+      404,
+    );
+    const changed = await describe({ description: '  Read the methods.\nRecord the evidence.  ' });
+    assert.equal(changed.status, 200);
+    const described = await changed.json();
+    assert.deepEqual(described.tasks[0], {
+      ...retrieved.tasks[0],
+      description: 'Read the methods.\nRecord the evidence.',
+    });
+    assert.deepEqual(described.tasks.slice(1), retrieved.tasks.slice(1));
+    const { BackupService } = require('../../dist/modules/backup/business/services/backup.service');
+    const backup = ownedApp.app.get(BackupService);
+    const exported = await backup.export();
+    assert.equal(
+      exported.data.weeklyPlans.find((item) => item.weekId === saved.weekId).tasks[0].description,
+      described.tasks[0].description,
+    );
+    const previewBackup = await backup.preview(exported);
+    await backup.restore({ backup: exported, ...previewBackup, confirmation: 'REPLACE ALL DATA' });
+    assert.equal(
+      (await (await fetch(`${base}/weekly-plans/${saved.id}`)).json()).tasks[0].description,
+      described.tasks[0].description,
+    );
+    const removed = await (await describe({ description: '   ' })).json();
+    assert.equal(removed.tasks[0].description, undefined);
+    assert.deepEqual(
+      removed.tasks[0],
+      Object.fromEntries(
+        Object.entries(retrieved.tasks[0]).filter(([key]) => key !== 'description'),
+      ),
+    );
+    assert.deepEqual(
+      await Promise.all(
+        ['xp_transactions', 'daily_activity'].map((name) =>
+          connection
+            .collection(name)
+            .find({}, { projection: { __v: 0 } })
+            .toArray(),
+        ),
+      ),
+      historyBefore,
+    );
+    console.log(
+      'PASS: optional task descriptions validate, edit and clear without changing progress/history; backup/restore preserves descriptions.',
+    );
     const list = await (await fetch(`${base}/weekly-plans`)).json();
     assert.ok(list.some((item) => item.id === saved.id));
     assert.ok(list.every((item) => !('tasks' in item)));

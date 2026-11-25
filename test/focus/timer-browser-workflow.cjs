@@ -42,6 +42,53 @@ module.exports = async function ({ page: previousPage, origin, pass, call, own }
     await page.goto(origin + '/weekly-plan');
     await page.locator('select').first().selectOption(plan.id);
     await page.getByRole('button', { name: /^Monday 2026-11-23/ }).click();
+    const taskCard = page
+      .locator('pq-plan-task')
+      .filter({ hasText: 'Integrated timer research task' });
+    await taskCard.getByRole('button', { name: /^(Add|Edit) description$/ }).click();
+    const description = taskCard.getByRole('textbox', { name: 'Description (optional)' });
+    await description.fill('Read the paper.\nCapture evidence for the research log.');
+    await page.route('**/api/weekly-plans/*/tasks/*/description', (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Unavailable' }),
+      }),
+    );
+    await taskCard.getByRole('button', { name: 'Save description', exact: true }).click();
+    await taskCard.getByRole('alert').waitFor();
+    assert.equal(
+      await description.inputValue(),
+      'Read the paper.\nCapture evidence for the research log.',
+    );
+    await page.unroute('**/api/weekly-plans/*/tasks/*/description');
+    await taskCard.getByRole('button', { name: 'Save description', exact: true }).click();
+    await description.waitFor({ state: 'hidden' });
+    await page.reload();
+    await page.getByRole('button', { name: /^Monday 2026-11-23/ }).click();
+    assert.equal(
+      await taskCard.locator('.description').textContent(),
+      'Read the paper.\nCapture evidence for the research log.',
+    );
+    await taskCard.getByRole('button', { name: 'Edit description', exact: true }).click();
+    await description.fill('Discarded change');
+    await taskCard.getByRole('button', { name: 'Cancel', exact: true }).click();
+    assert.match(await taskCard.locator('.description').textContent(), /Capture evidence/);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await taskCard.getByRole('button', { name: 'Edit description', exact: true }).click();
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      true,
+    );
+    await description.fill('');
+    await taskCard.getByRole('button', { name: 'Save description', exact: true }).click();
+    await description.waitFor({ state: 'hidden' });
+    await taskCard.getByRole('button', { name: 'Add description', exact: true }).waitFor();
+    assert.equal((await call('/weekly-plans/' + plan.id)).tasks[0].description, undefined);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    pass(
+      'Task descriptions support multiline editing, failed-save retry, reload persistence, cancel and removal on desktop/mobile',
+    );
     const start = page.getByRole('button', {
       name: 'Open timer for Integrated timer research task',
     });

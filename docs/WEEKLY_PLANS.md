@@ -33,6 +33,8 @@ Focused checks: `npm run test:plans` covers deterministic rules/DTOs. `npm run t
 
 ## Conflict and progress policy
 
+Saved tasks support PATCH `/api/weekly-plans/:planId/tasks/:taskId/description` with `{ "description": "Optional notes" }`. It returns the updated saved plan. Text is trimmed, limited to 2,000 characters, and an empty string removes the description. Weekly Plan offers Add/Edit description, Save and Cancel for pending and completed tasks. This transaction updates only the description; completion, actual time, XP and activity history are preserved. Descriptions remain compatible with version-1 imports and full-workspace backups.
+
 The weekly_plans collection has a unique weekId index ensured before serving requests. Tasks are embedded with no separate task collection. Duplicate IDs are rejected before saving. Initial progress is assigned by the backend, never imported. Import is insert-only: repeated imports cannot reset existing task status, actual duration or completion timestamps. Editing, merging and replacing a week require a later explicitly designed workflow.
 
 ## Reusable ChatGPT prompt

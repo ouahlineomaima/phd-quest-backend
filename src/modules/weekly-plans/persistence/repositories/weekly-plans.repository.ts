@@ -73,6 +73,18 @@ export class WeeklyPlansRepository implements OnModuleInit {
   recordById(id: string, session: ClientSession) {
     return this.model.findById(id).session(session).lean().exec();
   }
+  updateDescription(id: string, taskId: string, description: string, session: ClientSession) {
+    return this.model
+      .findOneAndUpdate(
+        { _id: id, 'tasks.id': taskId },
+        description
+          ? { $set: { 'tasks.$.description': description } }
+          : { $unset: { 'tasks.$.description': '' } },
+        { session, new: true, runValidators: true },
+      )
+      .lean()
+      .exec();
+  }
   transition(
     id: string,
     taskId: string,

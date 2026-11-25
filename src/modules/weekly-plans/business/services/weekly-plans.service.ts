@@ -63,6 +63,23 @@ export class WeeklyPlansService {
     }
   }
 
+  async updateDescription(id: string, taskId: string, description: string) {
+    if (
+      !isObjectIdOrHexString(id) ||
+      !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(taskId) ||
+      typeof description !== 'string' ||
+      description.trim().length > 2000
+    )
+      throw new BadRequestException(
+        'Use valid plan/task identifiers and up to 2,000 description characters.',
+      );
+    return applicationWrite(this.connection, async (session) => {
+      const plan = await this.repository.updateDescription(id, taskId, description.trim(), session);
+      if (!plan) throw new NotFoundException('Weekly plan or task not found.');
+      return this.repository.toResponse(plan);
+    });
+  }
+
   async preview(input: WeeklyPlanInput): Promise<ImportPreviewDto> {
     const plan = validatePlan(input);
     const exists = await this.repository.exists(plan.weekId);

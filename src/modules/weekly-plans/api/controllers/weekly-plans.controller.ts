@@ -1,6 +1,7 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import { WeeklyPlansService } from '../../business/services/weekly-plans.service';
 import { ImportPlanDto } from '../dtos/import-plan.dto';
+import { TaskDescriptionDto } from '../dtos/task-description.dto';
 
 @Controller('weekly-plans')
 export class WeeklyPlansController {
@@ -21,5 +22,13 @@ export class WeeklyPlansController {
   @Get(':id')
   detail(@Param('id') id: string) {
     return this.plans.detail(id);
+  }
+  @Patch(':id/tasks/:taskId/description')
+  updateDescription(
+    @Param('id') id: string,
+    @Param('taskId') taskId: string,
+    @Body() input: TaskDescriptionDto,
+  ) {
+    return this.plans.updateDescription(id, taskId, input.description);
   }
 }
