@@ -15,7 +15,6 @@ module.exports = async function ({ page: previousPage, origin, pass, call, own }
   const clock = own.app.get(ApplicationClock),
     originalNow = clock.now.bind(clock);
   let now = Date.now();
-  clock.now = () => new Date(now);
   const mini = page.locator('.focus-mini');
   try {
     const example = require('../../docs/contracts/weekly-plan.v1.example.json');
@@ -31,7 +30,7 @@ module.exports = async function ({ page: previousPage, origin, pass, call, own }
           {
             ...example.tasks[0],
             id: 'integrated-timer',
-            title: 'Integrated timer research task',
+            title: 'Integrated timer research task — ' + 'research context '.repeat(7).trim(),
             date: '2026-11-23',
           },
         ],
@@ -42,6 +41,7 @@ module.exports = async function ({ page: previousPage, origin, pass, call, own }
     await page.goto(origin + '/weekly-plan');
     await page.locator('select').first().selectOption(plan.id);
     await page.getByRole('button', { name: /^Monday 2026-11-23/ }).click();
+    await require('./timer-header-browser-workflow.cjs')({ page, origin, pass, call });
     const taskCard = page
       .locator('pq-plan-task')
       .filter({ hasText: 'Integrated timer research task' });
@@ -90,13 +90,22 @@ module.exports = async function ({ page: previousPage, origin, pass, call, own }
       'Task descriptions support multiline editing, failed-save retry, reload persistence, cancel and removal on desktop/mobile',
     );
     const start = page.getByRole('button', {
-      name: 'Open timer for Integrated timer research task',
+      name: 'Open timer for ' + plan.tasks[0].title,
     });
     await start.waitFor();
+    now = Date.now();
+    clock.now = () => new Date(now);
     await start.click();
     await page.getByRole('button', { name: 'Pause', exact: true }).waitFor();
     await mini.filter({ hasText: 'Integrated timer research task' }).waitFor();
     const first = await call('/focus-sessions/current');
+    await require('./timer-header-browser-workflow.cjs')({
+      page,
+      origin,
+      pass,
+      call,
+      active: true,
+    });
     assert.equal(first.taskRef, '2026-11-22:integrated-timer');
     pass('Weekly Plan starts the shared server timer with the stable cross-week task identity');
     await page.locator('a[href="/goals"]').first().click();
@@ -170,6 +179,14 @@ module.exports = async function ({ page: previousPage, origin, pass, call, own }
     assert.equal(completed.status, 'completed');
     assert.equal(completed.actualMinutes, 3);
     const awarded = await call('/gamification/summary');
+    await page
+      .locator('.topbar')
+      .getByRole('button', { name: `Total XP: ${awarded.totalXp}. Show details`, exact: true })
+      .waitFor();
+    assert.equal(
+      await page.locator('.topbar [role="progressbar"]').getAttribute('aria-valuenow'),
+      String(awarded.levelProgressPercent),
+    );
     assert.equal(awarded.totalXp - beforeCompletion.totalXp, example.tasks[0].xpReward);
     await call(
       '/weekly-plans/' + plan.id + '/tasks/integrated-timer/complete',
